@@ -141,3 +141,12 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+.env
+.env.*
+!.env.example
+.vercel
+.next
+coverage
+playwright-report
+test-results
