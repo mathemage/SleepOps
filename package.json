@@ -1,0 +1,11 @@
+{
+  "name": "sleepops",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "node --check test/ci-workflow.test.mjs",
+    "test": "node --test",
+    "build": "node --check test/ci-workflow.test.mjs"
+  }
+}
