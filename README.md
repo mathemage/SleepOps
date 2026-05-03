@@ -120,11 +120,11 @@ So the winning app should be a **constraint engine**, not a pretty checklist.
 
 ### Best implementation pattern
 
-Make this as a **PWA with Supabase-backed local-first storage**:
+Make this as a **PWA with an offline-capable local cache**:
 
 ```text
 Frontend: Next.js / React
-Storage: Supabase Postgres as canonical DB + IndexedDB local cache/fallback
+Storage: Supabase Postgres as source of truth + IndexedDB offline cache
 Auth: magic link / passkey
 Notifications: Web Push where available
 Calendar: Google Calendar integration later
@@ -139,7 +139,7 @@ Charts: simple duration trends
 | --- | --- | --- |
 | App | **Next.js + TypeScript** | Strong default for a polished full-stack PWA. The App Router uses modern React features such as Server Components, Suspense, and Server Functions. |
 | UI | **Tailwind CSS + shadcn/ui** | Fast, clean, low-friction UI stack for dashboards, cards, forms, and ADHD-friendly “one clear next action” screens. |
-| Storage | **Supabase Postgres + IndexedDB** | Supabase Postgres is the canonical remote database; IndexedDB keeps local/offline state and sync fallback data on each device. |
+| Storage | **Supabase Postgres + IndexedDB** | Supabase Postgres is the canonical remote database and source of truth; IndexedDB caches schedules/settings locally and queues offline edits to sync when online. |
 | ORM | **Prisma** | Type-safe TypeScript ORM with good developer experience, migrations, and a documented Next.js integration path. |
 | Tests | **Vitest + Playwright** | Vitest for fast unit/domain tests; Playwright for end-to-end browser testing across Chromium, Firefox, and WebKit. |
 | App format | **Progressive Web App** | Best fit for laptop Chrome + iPhone access from one codebase, with installability and offline-capable behavior. |
