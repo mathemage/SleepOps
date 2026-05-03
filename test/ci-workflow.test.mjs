@@ -14,6 +14,8 @@ test("CI workflow uses Node 22 and runs npm checks", () => {
     "npm run lint",
     "npm run test",
     "npm run build",
+    "npx playwright install --with-deps chromium",
+    "npm --prefix sleepops run test:e2e",
   ]) {
     assert.match(workflow, new RegExp(`- run: ${command.replaceAll(" ", "\\s+")}`));
   }
