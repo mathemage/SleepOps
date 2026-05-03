@@ -68,7 +68,7 @@ export function SleepCompiler() {
             </div>
 
             <div
-              aria-live="polite"
+              aria-live={hasWarning ? "assertive" : "polite"}
               className={`border p-4 ${
                 hasWarning
                   ? "border-[#b91c1c] bg-[#fee2e2]"
@@ -104,7 +104,10 @@ export function SleepCompiler() {
         </section>
 
         <section className="grid gap-5">
-          <form className="grid gap-5 border border-[#d8dfda] bg-white p-5 shadow-sm sm:p-6">
+          <form
+            className="grid gap-5 border border-[#d8dfda] bg-white p-5 shadow-sm sm:p-6"
+            onSubmit={(event) => event.preventDefault()}
+          >
             <label className="grid gap-2 text-sm font-medium text-[#3f3f46]">
               Work start time
               <input
@@ -211,7 +214,9 @@ function DurationControl({
             id={id}
             max={max}
             min={0}
-            onChange={(event) => onChange(readMinutes(event.currentTarget))}
+            onChange={(event) =>
+              onChange(readMinutes(event.currentTarget, max, MINUTES_STEP))
+            }
             step={MINUTES_STEP}
             type="number"
             value={value}
@@ -224,7 +229,9 @@ function DurationControl({
         className="h-2 w-full accent-[#166534]"
         max={max}
         min={0}
-        onChange={(event) => onChange(readMinutes(event.currentTarget))}
+        onChange={(event) =>
+          onChange(readMinutes(event.currentTarget, max, MINUTES_STEP))
+        }
         step={MINUTES_STEP}
         type="range"
         value={value}
@@ -233,8 +240,10 @@ function DurationControl({
   );
 }
 
-function readMinutes(input: HTMLInputElement): number {
+function readMinutes(input: HTMLInputElement, max: number, step: number): number {
   const minutes = Number(input.value);
+  const roundedMinutes = Number.isFinite(minutes) ? Math.round(minutes) : 0;
+  const steppedMinutes = Math.round(roundedMinutes / step) * step;
 
-  return Number.isFinite(minutes) ? Math.max(0, Math.round(minutes)) : 0;
+  return Math.min(max, Math.max(0, steppedMinutes));
 }

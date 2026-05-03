@@ -34,3 +34,25 @@ test("recalculates for a 10-6 day and warns on impossible input", async ({
   await expect(constraintAlert).toContainText("Constraint violated");
   await expect(constraintAlert).toContainText("Reduce the plan by 45m");
 });
+
+test("normalizes typed duration values to the allowed range and step", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  const morningRoutine = page.getByRole("spinbutton", {
+    name: "Morning routine duration",
+  });
+  const commuteBuffer = page.getByRole("spinbutton", {
+    name: "Commute / buffer duration",
+  });
+
+  await morningRoutine.fill("842");
+  await commuteBuffer.fill("999");
+
+  await expect(morningRoutine).toHaveValue("840");
+  await expect(commuteBuffer).toHaveValue("240");
+  await expect(page.locator("main").getByRole("alert")).toContainText(
+    "Reduce the plan by 3h 45m",
+  );
+});
