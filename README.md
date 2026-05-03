@@ -115,7 +115,7 @@ morning routine bloat
 So the winning app should be a **constraint engine**, not a pretty checklist.
 
 [1]: https://www.cdc.gov/sleep/data-research/facts-stats/adults-sleep-facts-and-stats.html "FastStats: Sleep in Adults"
-[2]: https://pmc.ncbi.nlm.nih.gov/articles/PMC3414742/ "A randomized controlled trial of CBT therapy for adults with ..."
+[2]: https://pmc.ncbi.nlm.nih.gov/articles/PMC3414742/
 <!-- [3]: https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps "Progressive web apps - MDN Web Docs - Mozilla" -->
 
 ### Best implementation pattern
