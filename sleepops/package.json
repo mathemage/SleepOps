@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run src",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "date-fns": "^4.1.0",
