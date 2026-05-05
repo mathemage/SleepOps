@@ -56,3 +56,33 @@ test("normalizes typed duration values to the allowed range and step", async ({
     "Reduce the plan by 3h 45m",
   );
 });
+
+test("records step durations, persists them, and feeds the measured total into the sleep contract", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await expect(page.getByRole("textbox", { name: "Day" })).toHaveValue(
+    /\d{4}-\d{2}-\d{2}/,
+  );
+
+  await page.getByLabel("Minutes wake").fill("60");
+  await page.getByLabel("Minutes hygiene").fill("45");
+  await page.getByLabel("Minutes out").fill("15");
+
+  await expect(page.getByRole("list", { name: "Top time leaks" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Top time leaks" })).toContainText(
+    "Wake + bathroom",
+  );
+
+  await page.reload();
+
+  await expect(page.getByRole("list", { name: "Top time leaks" })).toContainText(
+    "Hygiene",
+  );
+
+  await page.getByLabel(/Use measured 7-day average/).check();
+
+  await expect(page.getByText("Start shutdown by 20:45")).toBeVisible();
+  await expect(page.getByRole("definition").filter({ hasText: "06:30" })).toBeVisible();
+});

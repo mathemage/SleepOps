@@ -1,29 +1,66 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import {
   REQUIRED_SLEEP_MINUTES,
   buildSleepSchedule,
   formatDuration,
 } from "@/lib/sleep";
+import {
+  addStep,
+  createDefaultMorningRoutineProfiler,
+  measuredMorningRoutineMinutes,
+  parseProfiler,
+  pruneToLastNDays,
+  removeStep,
+  serializeProfiler,
+  setStepLabel,
+  setStepMinutesForDay,
+  toDateKey,
+  topTimeLeaks,
+  totalMinutesForDay,
+  type MorningRoutineProfiler,
+} from "@/lib/routine";
 
 const MINUTES_STEP = 5;
 const MAX_ROUTINE_MINUTES = 900;
 const MAX_BUFFER_MINUTES = 240;
+const PROFILER_STORAGE_KEY = "sleepops.morningRoutineProfiler.v1";
+const PROFILER_CHANGE_EVENT = "sleepops.morningRoutineProfiler.change";
 
 export function SleepCompiler() {
   const [workStart, setWorkStart] = useState("09:00");
-  const [morningRoutineMinutes, setMorningRoutineMinutes] = useState(75);
+  const [manualMorningRoutineMinutes, setManualMorningRoutineMinutes] =
+    useState(75);
+  const [useProfiledMorningRoutine, setUseProfiledMorningRoutine] =
+    useState(false);
   const [commuteBufferMinutes, setCommuteBufferMinutes] = useState(30);
+
+  const todayKey = useMemo(() => toDateKey(new Date()), []);
+  const [recordDateKey, setRecordDateKey] = useState(todayKey);
+  const [profiler, updateProfiler] = useMorningRoutineProfiler(todayKey);
+  const [newStepLabel, setNewStepLabel] = useState("");
+
+  const profiledMorningRoutineMinutes = useMemo(
+    () => measuredMorningRoutineMinutes(profiler, todayKey, 7, MINUTES_STEP),
+    [profiler, todayKey],
+  );
+
+  const canUseProfiled = profiledMorningRoutineMinutes !== null;
+
+  const effectiveMorningRoutineMinutes =
+    useProfiledMorningRoutine && profiledMorningRoutineMinutes !== null
+      ? profiledMorningRoutineMinutes
+      : manualMorningRoutineMinutes;
 
   const schedule = useMemo(
     () =>
       buildSleepSchedule({
         workStart,
-        morningRoutineMinutes,
+        morningRoutineMinutes: effectiveMorningRoutineMinutes,
         commuteBufferMinutes,
       }),
-    [workStart, morningRoutineMinutes, commuteBufferMinutes],
+    [workStart, effectiveMorningRoutineMinutes, commuteBufferMinutes],
   );
 
   const hasWarning = schedule.constraintWarning !== null;
@@ -124,9 +161,30 @@ export function SleepCompiler() {
               id="morning-routine"
               label="Morning routine duration"
               max={MAX_ROUTINE_MINUTES}
-              onChange={setMorningRoutineMinutes}
-              value={morningRoutineMinutes}
+              onChange={setManualMorningRoutineMinutes}
+              value={effectiveMorningRoutineMinutes}
+              disabled={useProfiledMorningRoutine && canUseProfiled}
             />
+
+            <label className="flex items-start gap-3 border border-[#d8dfda] bg-[#fbfcfb] p-3 text-sm text-[#3f3f46]">
+              <input
+                checked={useProfiledMorningRoutine}
+                className="mt-1 accent-[#166534]"
+                disabled={!canUseProfiled}
+                onChange={(event) =>
+                  setUseProfiledMorningRoutine(event.currentTarget.checked)
+                }
+                type="checkbox"
+              />
+              <span>
+                Use measured 7-day average
+                <span className="ml-2 text-[#52525b]">
+                  {canUseProfiled
+                    ? `(${formatDuration(profiledMorningRoutineMinutes!)})`
+                    : "(record a day to enable)"}
+                </span>
+              </span>
+            </label>
 
             <DurationControl
               id="commute-buffer"
@@ -136,6 +194,147 @@ export function SleepCompiler() {
               value={commuteBufferMinutes}
             />
           </form>
+
+          <section className="border border-[#d8dfda] bg-white p-5 shadow-sm sm:p-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <h2 className="text-xl font-semibold">Morning routine profiler</h2>
+              <p className="text-sm text-[#52525b]">Keeps the last 7 days locally.</p>
+            </div>
+
+            <div className="mt-4 grid gap-4">
+              <label className="grid gap-2 text-sm font-medium text-[#3f3f46]">
+                Day
+                <input
+                  className="h-12 w-full border border-[#cfd8d1] bg-[#fbfcfb] px-3 text-lg font-semibold text-[#18181b] outline-none focus:border-[#166534]"
+                  max={todayKey}
+                  onChange={(event) =>
+                    setRecordDateKey(event.currentTarget.value || todayKey)
+                  }
+                  type="date"
+                  value={recordDateKey}
+                />
+              </label>
+
+              <div className="grid gap-2">
+                <p className="text-sm font-medium text-[#3f3f46]">
+                  Steps (minutes)
+                </p>
+                <div className="grid gap-2">
+                  {profiler.steps.map((step) => {
+                    const dayMinutes =
+                      profiler.days.find((day) => day.date === recordDateKey)
+                        ?.minutesByStepId[step.id] ?? 0;
+
+                    return (
+                      <div
+                        className="grid grid-cols-[1fr_120px_auto] items-center gap-2"
+                        key={step.id}
+                      >
+                        <input
+                          aria-label={`Step name ${step.id}`}
+                          className="h-12 w-full border border-[#cfd8d1] bg-[#fbfcfb] px-3 text-sm font-semibold text-[#18181b] outline-none focus:border-[#166534]"
+                          onChange={(event) => {
+                            const label = event.currentTarget.value;
+                            updateProfiler((current) =>
+                              setStepLabel(current, step.id, label),
+                            );
+                          }}
+                          type="text"
+                          value={step.label}
+                        />
+                        <input
+                          aria-label={`Minutes ${step.id}`}
+                          className="h-12 w-full border border-[#cfd8d1] bg-[#fbfcfb] px-3 text-lg font-semibold text-[#18181b] outline-none focus:border-[#166534]"
+                          inputMode="numeric"
+                          max={MAX_ROUTINE_MINUTES}
+                          min={0}
+                          onChange={(event) => {
+                            const minutes = Number(event.currentTarget.value);
+                            updateProfiler((current) =>
+                              setStepMinutesForDay(
+                                current,
+                                recordDateKey,
+                                step.id,
+                                minutes,
+                                todayKey,
+                                7,
+                              ),
+                            );
+                          }}
+                          step={1}
+                          type="number"
+                          value={dayMinutes}
+                        />
+                        <button
+                          aria-label={`Remove step ${step.id}`}
+                          className="h-12 border border-[#d8dfda] bg-white px-3 text-sm font-semibold text-[#18181b] hover:bg-[#fbfcfb]"
+                          onClick={() =>
+                            updateProfiler((current) => removeStep(current, step.id))
+                          }
+                          type="button"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <form
+                className="grid gap-2 sm:grid-cols-[1fr_auto]"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const label = newStepLabel.trim();
+                  if (!label) {
+                    return;
+                  }
+
+                  updateProfiler((current) =>
+                    addStep(current, { id: makeStepId(), label }),
+                  );
+                  setNewStepLabel("");
+                }}
+              >
+                <label className="grid gap-2 text-sm font-medium text-[#3f3f46]">
+                  New step
+                  <input
+                    aria-label="New step name"
+                    className="h-12 w-full border border-[#cfd8d1] bg-[#fbfcfb] px-3 text-sm font-semibold text-[#18181b] outline-none focus:border-[#166534]"
+                    onChange={(event) => setNewStepLabel(event.currentTarget.value)}
+                    placeholder="e.g., Breakfast"
+                    type="text"
+                    value={newStepLabel}
+                  />
+                </label>
+                <button
+                  className="h-12 self-end border border-[#d8dfda] bg-white px-4 text-sm font-semibold text-[#18181b] hover:bg-[#fbfcfb]"
+                  type="submit"
+                >
+                  Add step
+                </button>
+              </form>
+
+              <div className="grid gap-2 border-t border-[#e4e7e4] pt-4 text-sm text-[#52525b]">
+                <div className="flex items-center justify-between gap-4">
+                  <span>Day total</span>
+                  <strong className="text-[#18181b]">
+                    {formatDuration(totalMinutesForDay(profiler, recordDateKey))}
+                  </strong>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span>7-day measured average</span>
+                  <strong className="text-[#18181b]">
+                    {profiledMorningRoutineMinutes === null
+                      ? "—"
+                      : formatDuration(profiledMorningRoutineMinutes)}
+                  </strong>
+                </div>
+              </div>
+
+              <TopLeaks profiler={profiler} todayKey={todayKey} />
+            </div>
+          </section>
 
           <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {results.map((result) => (
@@ -193,6 +392,7 @@ type DurationControlProps = {
   max: number;
   value: number;
   onChange: (value: number) => void;
+  disabled?: boolean;
 };
 
 function DurationControl({
@@ -201,6 +401,7 @@ function DurationControl({
   max,
   value,
   onChange,
+  disabled = false,
 }: DurationControlProps) {
   return (
     <div className="grid gap-3">
@@ -211,6 +412,7 @@ function DurationControl({
         <div className="flex h-12 w-full items-center border border-[#cfd8d1] bg-[#fbfcfb] sm:w-36">
           <input
             className="h-full min-w-0 flex-1 bg-transparent px-3 text-lg font-semibold text-[#18181b] outline-none focus:bg-white"
+            disabled={disabled}
             id={id}
             max={max}
             min={0}
@@ -227,6 +429,7 @@ function DurationControl({
       <input
         aria-label={`${label} slider`}
         className="h-2 w-full accent-[#166534]"
+        disabled={disabled}
         max={max}
         min={0}
         onChange={(event) =>
@@ -246,4 +449,115 @@ function readMinutes(input: HTMLInputElement, max: number, step: number): number
   const steppedMinutes = Math.round(roundedMinutes / step) * step;
 
   return Math.min(max, Math.max(0, steppedMinutes));
+}
+
+function TopLeaks({
+  profiler,
+  todayKey,
+}: {
+  profiler: MorningRoutineProfiler;
+  todayKey: string;
+}) {
+  const leaks = useMemo(() => topTimeLeaks(profiler, todayKey, 7, 3), [
+    profiler,
+    todayKey,
+  ]);
+
+  if (leaks.length === 0) {
+    return (
+      <div className="border border-[#d8dfda] bg-[#fbfcfb] p-3 text-sm text-[#52525b]">
+        Top time leaks will appear after you record a day.
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-2 border border-[#d8dfda] bg-[#fbfcfb] p-3">
+      <p className="text-sm font-semibold text-[#18181b]">
+        Top time leaks (7 days)
+      </p>
+      <ol aria-label="Top time leaks" className="grid gap-1 text-sm text-[#3f3f46]">
+        {leaks.map((leak) => (
+          <li className="flex items-center justify-between gap-3" key={leak.stepId}>
+            <span className="truncate">{leak.label}</span>
+            <strong className="text-[#18181b]">
+              {formatDuration(leak.totalMinutes)}
+            </strong>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function makeStepId(): string {
+  if ("crypto" in globalThis && typeof globalThis.crypto.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `step_${Math.random().toString(16).slice(2)}${Date.now().toString(16)}`;
+}
+
+function useMorningRoutineProfiler(todayKey: string) {
+  const raw = useSyncExternalStore(
+    subscribeToProfilerStore,
+    () => globalThis.localStorage?.getItem(PROFILER_STORAGE_KEY) ?? null,
+    () => null,
+  );
+
+  const profiler = useMemo(
+    () => hydrateProfiler(raw, todayKey),
+    [raw, todayKey],
+  );
+
+  const updateProfiler = (updater: (current: MorningRoutineProfiler) => MorningRoutineProfiler) => {
+    if (!("localStorage" in globalThis)) {
+      return;
+    }
+
+    const current = hydrateProfiler(
+      globalThis.localStorage.getItem(PROFILER_STORAGE_KEY),
+      todayKey,
+    );
+    const next = updater(current);
+
+    globalThis.localStorage.setItem(PROFILER_STORAGE_KEY, serializeProfiler(next));
+    globalThis.dispatchEvent(new Event(PROFILER_CHANGE_EVENT));
+  };
+
+  return [profiler, updateProfiler] as const;
+}
+
+function subscribeToProfilerStore(callback: () => void) {
+  if (!("addEventListener" in globalThis)) {
+    return () => {};
+  }
+
+  const handler = () => callback();
+  globalThis.addEventListener("storage", handler);
+  globalThis.addEventListener(PROFILER_CHANGE_EVENT, handler);
+  return () => {
+    globalThis.removeEventListener("storage", handler);
+    globalThis.removeEventListener(PROFILER_CHANGE_EVENT, handler);
+  };
+}
+
+function hydrateProfiler(
+  raw: string | null,
+  todayKey: string,
+): MorningRoutineProfiler {
+  const fallback = createDefaultMorningRoutineProfiler();
+  if (!raw) {
+    return fallback;
+  }
+
+  const parsed = parseProfiler(raw);
+  if (!parsed) {
+    return fallback;
+  }
+
+  return {
+    steps: parsed.steps.length > 0 ? parsed.steps : fallback.steps,
+    days: pruneToLastNDays(parsed.days, todayKey, 7),
+  };
 }
