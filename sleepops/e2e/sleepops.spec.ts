@@ -115,3 +115,26 @@ test("keeps an intentionally empty routine step list across reloads", async ({
 
   await expect(page.getByRole("button", { name: /Remove step/ })).toHaveCount(0);
 });
+
+test("keeps the profiler usable when browser storage is unavailable", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      get() {
+        throw new DOMException("Storage blocked", "SecurityError");
+      },
+    });
+  });
+
+  await page.goto("/");
+
+  await expect(page.getByRole("heading", { name: "Tonight's shutdown deadline" })).toBeVisible();
+
+  await page.getByLabel("Minutes wake").fill("20");
+
+  await expect(page.getByRole("list", { name: "Top time leaks" })).toContainText(
+    "Wake + bathroom",
+  );
+});

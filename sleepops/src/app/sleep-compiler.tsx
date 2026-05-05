@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   REQUIRED_SLEEP_MINUTES,
   buildSleepSchedule,
@@ -28,6 +28,8 @@ const MAX_BUFFER_MINUTES = 240;
 const PROFILER_STORAGE_KEY = "sleepops.morningRoutineProfiler.v1";
 const PROFILER_CHANGE_EVENT = "sleepops.morningRoutineProfiler.change";
 
+let profilerMemorySnapshot: string | null = null;
+
 export function SleepCompiler() {
   const [workStart, setWorkStart] = useState("09:00");
   const [manualMorningRoutineMinutes, setManualMorningRoutineMinutes] =
@@ -36,8 +38,8 @@ export function SleepCompiler() {
     useState(false);
   const [commuteBufferMinutes, setCommuteBufferMinutes] = useState(30);
 
-  const todayKey = useMemo(() => toDateKey(new Date()), []);
-  const [recordDateKey, setRecordDateKey] = useState(todayKey);
+  const { recordDateKey, setRecordDateKey, todayKey } =
+    useProfilerDateKeys();
   const [profiler, updateProfiler] = useMorningRoutineProfiler(todayKey);
   const [newStepLabel, setNewStepLabel] = useState("");
 
@@ -520,10 +522,49 @@ function makeStepId(): string {
   return `step_${Math.random().toString(16).slice(2)}${Date.now().toString(16)}`;
 }
 
+function useProfilerDateKeys() {
+  const [dateKeys, setDateKeys] = useState(() => {
+    const todayKey = toDateKey(new Date());
+    return { recordDateKey: todayKey, todayKey };
+  });
+
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const scheduleMidnightUpdate = () => {
+      const now = new Date();
+      const nextMidnight = new Date(now);
+      nextMidnight.setHours(24, 0, 0, 0);
+      const delay = Math.max(1_000, nextMidnight.getTime() - now.getTime());
+
+      timeoutId = setTimeout(() => {
+        const nextTodayKey = toDateKey(new Date());
+        setDateKeys((current) => ({
+          todayKey: nextTodayKey,
+          recordDateKey:
+            current.recordDateKey === current.todayKey
+              ? nextTodayKey
+              : current.recordDateKey,
+        }));
+        scheduleMidnightUpdate();
+      }, delay);
+    };
+
+    scheduleMidnightUpdate();
+    return () => clearTimeout(timeoutId);
+  }, []);
+
+  return {
+    ...dateKeys,
+    setRecordDateKey: (recordDateKey: string) =>
+      setDateKeys((current) => ({ ...current, recordDateKey })),
+  };
+}
+
 function useMorningRoutineProfiler(todayKey: string) {
   const raw = useSyncExternalStore(
     subscribeToProfilerStore,
-    () => globalThis.localStorage?.getItem(PROFILER_STORAGE_KEY) ?? null,
+    readProfilerSnapshot,
     () => null,
   );
 
@@ -533,21 +574,38 @@ function useMorningRoutineProfiler(todayKey: string) {
   );
 
   const updateProfiler = (updater: (current: MorningRoutineProfiler) => MorningRoutineProfiler) => {
-    if (!("localStorage" in globalThis)) {
-      return;
-    }
-
-    const current = hydrateProfiler(
-      globalThis.localStorage.getItem(PROFILER_STORAGE_KEY),
-      todayKey,
-    );
+    const current = hydrateProfiler(readProfilerSnapshot(), todayKey);
     const next = updater(current);
 
-    globalThis.localStorage.setItem(PROFILER_STORAGE_KEY, serializeProfiler(next));
-    globalThis.dispatchEvent(new Event(PROFILER_CHANGE_EVENT));
+    writeProfilerSnapshot(serializeProfiler(next));
   };
 
   return [profiler, updateProfiler] as const;
+}
+
+function readProfilerSnapshot(): string | null {
+  try {
+    return globalThis.localStorage?.getItem(PROFILER_STORAGE_KEY) ??
+      profilerMemorySnapshot;
+  } catch {
+    return profilerMemorySnapshot;
+  }
+}
+
+function writeProfilerSnapshot(raw: string) {
+  profilerMemorySnapshot = raw;
+
+  try {
+    globalThis.localStorage?.setItem(PROFILER_STORAGE_KEY, raw);
+  } catch {
+    // Keep the in-memory snapshot so the current session remains usable.
+  }
+
+  try {
+    globalThis.dispatchEvent(new Event(PROFILER_CHANGE_EVENT));
+  } catch {
+    // Rendering should not depend on custom event delivery.
+  }
 }
 
 function subscribeToProfilerStore(callback: () => void) {
