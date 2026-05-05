@@ -85,4 +85,33 @@ test("records step durations, persists them, and feeds the measured total into t
 
   await expect(page.getByText("Start shutdown by 20:45")).toBeVisible();
   await expect(page.getByRole("definition").filter({ hasText: "06:30" })).toBeVisible();
+
+  await page.getByLabel("Minutes wake").fill("0");
+  await page.getByLabel("Minutes hygiene").fill("0");
+  await page.getByLabel("Minutes out").fill("0");
+
+  const measuredAverage = page.getByLabel(/Use measured 7-day average/);
+  await expect(measuredAverage).not.toBeChecked();
+  await expect(measuredAverage).toBeDisabled();
+  await expect(
+    page.getByRole("spinbutton", { name: "Morning routine duration" }),
+  ).toBeEnabled();
+});
+
+test("keeps an intentionally empty routine step list across reloads", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Remove step wake" }).click();
+  await page.getByRole("button", { name: "Remove step meds" }).click();
+  await page.getByRole("button", { name: "Remove step hygiene" }).click();
+  await page.getByRole("button", { name: "Remove step clothes" }).click();
+  await page.getByRole("button", { name: "Remove step out" }).click();
+
+  await expect(page.getByRole("button", { name: /Remove step/ })).toHaveCount(0);
+
+  await page.reload();
+
+  await expect(page.getByRole("button", { name: /Remove step/ })).toHaveCount(0);
 });

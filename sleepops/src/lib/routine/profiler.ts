@@ -42,7 +42,29 @@ export function clampWholeMinutes(value: unknown, max = 900): number {
 }
 
 export function isDateKey(value: string): boolean {
-  return DATE_KEY_PATTERN.test(value);
+  if (!DATE_KEY_PATTERN.test(value)) {
+    return false;
+  }
+
+  const [yearPart, monthPart, dayPart] = value.split("-");
+  const year = Number(yearPart);
+  const month = Number(monthPart);
+  const day = Number(dayPart);
+
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day)
+  ) {
+    return false;
+  }
+
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
 }
 
 export function toDateKey(date: Date): string {
@@ -290,23 +312,15 @@ function roundToStep(value: number, step: number): number {
 }
 
 function dateKeyToEpochDay(value: string): number {
+  if (!isDateKey(value)) {
+    throw new RangeError(`Invalid date key: ${value}`);
+  }
+
   const [yearPart, monthPart, dayPart] = value.split("-");
   const year = Number(yearPart);
   const month = Number(monthPart);
   const day = Number(dayPart);
 
-  if (
-    !Number.isInteger(year) ||
-    !Number.isInteger(month) ||
-    !Number.isInteger(day)
-  ) {
-    throw new RangeError(`Invalid date key: ${value}`);
-  }
-
   const epochMs = Date.UTC(year, month - 1, day);
-  if (!Number.isFinite(epochMs)) {
-    throw new RangeError(`Invalid date key: ${value}`);
-  }
-
   return Math.floor(epochMs / 86_400_000);
 }

@@ -48,6 +48,26 @@ export function SleepCompiler() {
 
   const canUseProfiled = profiledMorningRoutineMinutes !== null;
 
+  const updateMorningProfiler = (
+    updater: (current: MorningRoutineProfiler) => MorningRoutineProfiler,
+  ) => {
+    updateProfiler((current) => {
+      const next = updater(current);
+      const nextProfiledMinutes = measuredMorningRoutineMinutes(
+        next,
+        todayKey,
+        7,
+        MINUTES_STEP,
+      );
+
+      if (nextProfiledMinutes === null) {
+        setUseProfiledMorningRoutine(false);
+      }
+
+      return next;
+    });
+  };
+
   const effectiveMorningRoutineMinutes =
     useProfiledMorningRoutine && profiledMorningRoutineMinutes !== null
       ? profiledMorningRoutineMinutes
@@ -235,7 +255,7 @@ export function SleepCompiler() {
                           className="h-12 w-full border border-[#cfd8d1] bg-[#fbfcfb] px-3 text-sm font-semibold text-[#18181b] outline-none focus:border-[#166534]"
                           onChange={(event) => {
                             const label = event.currentTarget.value;
-                            updateProfiler((current) =>
+                            updateMorningProfiler((current) =>
                               setStepLabel(current, step.id, label),
                             );
                           }}
@@ -250,7 +270,7 @@ export function SleepCompiler() {
                           min={0}
                           onChange={(event) => {
                             const minutes = Number(event.currentTarget.value);
-                            updateProfiler((current) =>
+                            updateMorningProfiler((current) =>
                               setStepMinutesForDay(
                                 current,
                                 recordDateKey,
@@ -269,7 +289,9 @@ export function SleepCompiler() {
                           aria-label={`Remove step ${step.id}`}
                           className="h-12 border border-[#d8dfda] bg-white px-3 text-sm font-semibold text-[#18181b] hover:bg-[#fbfcfb]"
                           onClick={() =>
-                            updateProfiler((current) => removeStep(current, step.id))
+                            updateMorningProfiler((current) =>
+                              removeStep(current, step.id),
+                            )
                           }
                           type="button"
                         >
@@ -290,7 +312,7 @@ export function SleepCompiler() {
                     return;
                   }
 
-                  updateProfiler((current) =>
+                  updateMorningProfiler((current) =>
                     addStep(current, { id: makeStepId(), label }),
                   );
                   setNewStepLabel("");
@@ -557,7 +579,7 @@ function hydrateProfiler(
   }
 
   return {
-    steps: parsed.steps.length > 0 ? parsed.steps : fallback.steps,
+    steps: parsed.steps,
     days: pruneToLastNDays(parsed.days, todayKey, 7),
   };
 }

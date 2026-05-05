@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   addStep,
   createDefaultMorningRoutineProfiler,
+  isDateKey,
   measuredMorningRoutineMinutes,
+  parseProfiler,
   pruneToLastNDays,
+  serializeProfiler,
   setStepMinutesForDay,
   topTimeLeaks,
   totalMinutesForDay,
@@ -21,6 +24,31 @@ describe("morning routine profiler", () => {
     expect(pruned).toHaveLength(7);
     expect(pruned[0]?.date).toBe("2026-05-04");
     expect(pruned[6]?.date).toBe("2026-05-10");
+  });
+
+  it("rejects out-of-range date keys", () => {
+    expect(isDateKey("2026-05-05")).toBe(true);
+    expect(isDateKey("2024-02-29")).toBe(true);
+    expect(isDateKey("2026-02-29")).toBe(false);
+    expect(isDateKey("2026-13-40")).toBe(false);
+    expect(isDateKey("2026-5-5")).toBe(false);
+  });
+
+  it("drops malformed stored dates during pruning", () => {
+    const pruned = pruneToLastNDays(
+      [
+        { date: "2026-05-04", minutesByStepId: { wake: 10 } },
+        { date: "2026-13-40", minutesByStepId: { wake: 99 } },
+        { date: "2026-05-05", minutesByStepId: { wake: 15 } },
+      ],
+      "2026-05-05",
+      7,
+    );
+
+    expect(pruned.map((day) => day.date)).toEqual([
+      "2026-05-04",
+      "2026-05-05",
+    ]);
   });
 
   it("records step minutes per day and reports that day's total", () => {
@@ -114,5 +142,55 @@ describe("morning routine profiler", () => {
 
     expect(leaks.map((leak) => leak.stepId)).toEqual(["coffee", "meds", "wake"]);
     expect(leaks[0]?.totalMinutes).toBe(20);
+  });
+
+  it("round-trips profiler persistence", () => {
+    const profiler = setStepMinutesForDay(
+      createDefaultMorningRoutineProfiler(),
+      "2026-05-05",
+      "wake",
+      12,
+      "2026-05-05",
+      7,
+    );
+
+    expect(parseProfiler(serializeProfiler(profiler))).toEqual(profiler);
+  });
+
+  it("preserves an intentionally empty step list in persisted data", () => {
+    const parsed = parseProfiler(JSON.stringify({ steps: [], days: [] }));
+
+    expect(parsed).toEqual({ steps: [], days: [] });
+  });
+
+  it("rejects malformed persisted profiler data", () => {
+    expect(parseProfiler("{")).toBeNull();
+    expect(parseProfiler(JSON.stringify({ steps: [] }))).toBeNull();
+    expect(parseProfiler(JSON.stringify({ steps: "wake", days: [] }))).toBeNull();
+  });
+
+  it("sanitizes persisted day minutes and ignores malformed rows", () => {
+    const parsed = parseProfiler(
+      JSON.stringify({
+        steps: [{ id: "wake", label: "Wake" }],
+        days: [
+          {
+            date: "2026-05-05",
+            minutesByStepId: { wake: "12.4", bad: -5, huge: 9999 },
+          },
+          { date: "2026-05-06", minutesByStepId: null },
+        ],
+      }),
+    );
+
+    expect(parsed).toEqual({
+      steps: [{ id: "wake", label: "Wake" }],
+      days: [
+        {
+          date: "2026-05-05",
+          minutesByStepId: { wake: 12, bad: 0, huge: 900 },
+        },
+      ],
+    });
   });
 });
