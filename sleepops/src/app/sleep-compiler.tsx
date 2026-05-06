@@ -45,32 +45,49 @@ export function SleepCompiler() {
   const [newStepLabel, setNewStepLabel] = useState("");
 
   const profiledMorningRoutineMinutes = useMemo(
-    () =>
-      measuredMorningRoutineMinutes(
+    () => {
+      if (!todayKey) {
+        return null;
+      }
+
+      return measuredMorningRoutineMinutes(
         profiler,
         todayKey,
         PROFILER_RETENTION_DAYS,
         MINUTES_STEP,
-      ),
+      );
+    },
     [profiler, todayKey],
   );
 
   const canUseProfiled = profiledMorningRoutineMinutes !== null;
+
+  useEffect(() => {
+    if (!canUseProfiled && useProfiledMorningRoutine) {
+      const timeoutId = setTimeout(() => {
+        setUseProfiledMorningRoutine(false);
+      }, 0);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [canUseProfiled, useProfiledMorningRoutine]);
 
   const updateMorningProfiler = (
     updater: (current: MorningRoutineProfiler) => MorningRoutineProfiler,
   ) => {
     updateProfiler((current) => {
       const next = updater(current);
-      const nextProfiledMinutes = measuredMorningRoutineMinutes(
-        next,
-        todayKey,
-        PROFILER_RETENTION_DAYS,
-        MINUTES_STEP,
-      );
+      if (todayKey) {
+        const nextProfiledMinutes = measuredMorningRoutineMinutes(
+          next,
+          todayKey,
+          PROFILER_RETENTION_DAYS,
+          MINUTES_STEP,
+        );
 
-      if (nextProfiledMinutes === null) {
-        setUseProfiledMorningRoutine(false);
+        if (nextProfiledMinutes === null) {
+          setUseProfiledMorningRoutine(false);
+        }
       }
 
       return next;
@@ -235,10 +252,11 @@ export function SleepCompiler() {
                 Day
                 <input
                   className="h-12 w-full border border-[#cfd8d1] bg-[#fbfcfb] px-3 text-lg font-semibold text-[#18181b] outline-none focus:border-[#166534]"
-                  max={todayKey}
-                  min={retainedStartKey}
+                  disabled={!todayKey}
+                  max={todayKey ?? undefined}
+                  min={retainedStartKey ?? undefined}
                   onChange={(event) =>
-                    setRecordDateKey(event.currentTarget.value || todayKey)
+                    setRecordDateKey(event.currentTarget.value || todayKey || "")
                   }
                   type="date"
                   value={recordDateKey}
@@ -275,10 +293,14 @@ export function SleepCompiler() {
                         <input
                           aria-label={`Minutes ${step.id}`}
                           className="h-12 w-full border border-[#cfd8d1] bg-[#fbfcfb] px-3 text-lg font-semibold text-[#18181b] outline-none focus:border-[#166534]"
+                          disabled={!todayKey || !recordDateKey}
                           inputMode="numeric"
                           max={MAX_ROUTINE_MINUTES}
                           min={0}
                           onChange={(event) => {
+                            if (!todayKey || !recordDateKey) {
+                              return;
+                            }
                             const minutes = Number(event.currentTarget.value);
                             updateMorningProfiler((current) =>
                               setStepMinutesForDay(
@@ -488,10 +510,16 @@ function TopLeaks({
   todayKey,
 }: {
   profiler: MorningRoutineProfiler;
-  todayKey: string;
+  todayKey: string | null;
 }) {
   const leaks = useMemo(
-    () => topTimeLeaks(profiler, todayKey, PROFILER_RETENTION_DAYS, 3),
+    () => {
+      if (!todayKey) {
+        return [];
+      }
+
+      return topTimeLeaks(profiler, todayKey, PROFILER_RETENTION_DAYS, 3);
+    },
     [profiler, todayKey],
   );
 
@@ -531,15 +559,15 @@ function makeStepId(): string {
 }
 
 function useProfilerDateKeys() {
-  const [dateKeys, setDateKeys] = useState(() => {
-    const todayKey = toDateKey(new Date());
-    const retainedStartKey = addDaysToDateKey(
-      todayKey,
-      -(PROFILER_RETENTION_DAYS - 1),
-    );
-
-    return { recordDateKey: todayKey, retainedStartKey, todayKey };
-  });
+  const [dateKeys, setDateKeys] = useState<{
+    recordDateKey: string;
+    retainedStartKey: string | null;
+    todayKey: string | null;
+  }>(() => ({
+    recordDateKey: "",
+    retainedStartKey: null,
+    todayKey: null,
+  }));
 
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout>;
@@ -558,16 +586,18 @@ function useProfilerDateKeys() {
         );
 
         setDateKeys((current) => {
-          const recordDateKey =
-            current.recordDateKey === current.todayKey
-              ? nextTodayKey
-              : current.recordDateKey;
+          const followToday = Boolean(
+            current.todayKey && current.recordDateKey === current.todayKey,
+          );
+          const candidateRecordDateKey = current.recordDateKey
+            ? (followToday ? nextTodayKey : current.recordDateKey)
+            : nextTodayKey;
 
           return {
             todayKey: nextTodayKey,
             retainedStartKey,
             recordDateKey: clampDateKey(
-              recordDateKey,
+              candidateRecordDateKey,
               retainedStartKey,
               nextTodayKey,
             ),
@@ -577,8 +607,27 @@ function useProfilerDateKeys() {
       }, delay);
     };
 
+    const initTimeoutId = setTimeout(() => {
+      setDateKeys(() => {
+        const nextTodayKey = toDateKey(new Date());
+        const retainedStartKey = addDaysToDateKey(
+          nextTodayKey,
+          -(PROFILER_RETENTION_DAYS - 1),
+        );
+
+        return {
+          todayKey: nextTodayKey,
+          retainedStartKey,
+          recordDateKey: nextTodayKey,
+        };
+      });
+    }, 0);
+
     scheduleMidnightUpdate();
-    return () => clearTimeout(timeoutId);
+    return () => {
+      clearTimeout(timeoutId);
+      clearTimeout(initTimeoutId);
+    };
   }, []);
 
   return {
@@ -586,11 +635,9 @@ function useProfilerDateKeys() {
     setRecordDateKey: (recordDateKey: string) =>
       setDateKeys((current) => ({
         ...current,
-        recordDateKey: clampDateKey(
-          recordDateKey,
-          current.retainedStartKey,
-          current.todayKey,
-        ),
+        recordDateKey: current.todayKey && current.retainedStartKey
+          ? clampDateKey(recordDateKey, current.retainedStartKey, current.todayKey)
+          : recordDateKey,
       })),
   };
 }
@@ -612,7 +659,7 @@ function clampDateKey(dateKey: string, minDateKey: string, maxDateKey: string) {
   return dateKey;
 }
 
-function useMorningRoutineProfiler(todayKey: string) {
+function useMorningRoutineProfiler(todayKey: string | null) {
   const raw = useSyncExternalStore(
     subscribeToProfilerStore,
     readProfilerSnapshot,
@@ -675,7 +722,7 @@ function subscribeToProfilerStore(callback: () => void) {
 
 function hydrateProfiler(
   raw: string | null,
-  todayKey: string,
+  todayKey: string | null,
 ): MorningRoutineProfiler {
   const fallback = createDefaultMorningRoutineProfiler();
   if (!raw) {
@@ -689,6 +736,8 @@ function hydrateProfiler(
 
   return {
     steps: parsed.steps,
-    days: pruneToLastNDays(parsed.days, todayKey, PROFILER_RETENTION_DAYS),
+    days: todayKey
+      ? pruneToLastNDays(parsed.days, todayKey, PROFILER_RETENTION_DAYS)
+      : parsed.days,
   };
 }
