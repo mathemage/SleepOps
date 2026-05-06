@@ -183,14 +183,37 @@ describe("morning routine profiler", () => {
       }),
     );
 
-    expect(parsed).toEqual({
-      steps: [{ id: "wake", label: "Wake" }],
-      days: [
-        {
-          date: "2026-05-05",
-          minutesByStepId: { wake: 12, bad: 0, huge: 900 },
-        },
-      ],
+    expect(parsed?.steps).toEqual([{ id: "wake", label: "Wake" }]);
+    expect(parsed?.days[0]?.date).toBe("2026-05-05");
+    expect(Object.getPrototypeOf(parsed?.days[0]?.minutesByStepId)).toBeNull();
+    expect(
+      Object.fromEntries(
+        Object.entries(parsed?.days[0]?.minutesByStepId ?? {}),
+      ),
+    ).toEqual({ wake: 12, bad: 0, huge: 900 });
+  });
+
+  it("drops dangerous persisted minute keys", () => {
+    const parsed = parseProfiler(
+      `{
+        "steps": [{ "id": "wake", "label": "Wake" }],
+        "days": [{
+          "date": "2026-05-05",
+          "minutesByStepId": {
+            "wake": 12,
+            "__proto__": 20,
+            "constructor": 30,
+            "prototype": 40
+          }
+        }]
+      }`,
+    );
+
+    const minutesByStepId = parsed?.days[0]?.minutesByStepId;
+
+    expect(Object.getPrototypeOf(minutesByStepId)).toBeNull();
+    expect(Object.fromEntries(Object.entries(minutesByStepId ?? {}))).toEqual({
+      wake: 12,
     });
   });
 });

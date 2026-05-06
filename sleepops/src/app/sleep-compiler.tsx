@@ -25,6 +25,7 @@ import {
 const MINUTES_STEP = 5;
 const MAX_ROUTINE_MINUTES = 900;
 const MAX_BUFFER_MINUTES = 240;
+const PROFILER_RETENTION_DAYS = 7;
 const PROFILER_STORAGE_KEY = "sleepops.morningRoutineProfiler.v1";
 const PROFILER_CHANGE_EVENT = "sleepops.morningRoutineProfiler.change";
 
@@ -38,13 +39,19 @@ export function SleepCompiler() {
     useState(false);
   const [commuteBufferMinutes, setCommuteBufferMinutes] = useState(30);
 
-  const { recordDateKey, setRecordDateKey, todayKey } =
+  const { recordDateKey, retainedStartKey, setRecordDateKey, todayKey } =
     useProfilerDateKeys();
   const [profiler, updateProfiler] = useMorningRoutineProfiler(todayKey);
   const [newStepLabel, setNewStepLabel] = useState("");
 
   const profiledMorningRoutineMinutes = useMemo(
-    () => measuredMorningRoutineMinutes(profiler, todayKey, 7, MINUTES_STEP),
+    () =>
+      measuredMorningRoutineMinutes(
+        profiler,
+        todayKey,
+        PROFILER_RETENTION_DAYS,
+        MINUTES_STEP,
+      ),
     [profiler, todayKey],
   );
 
@@ -58,7 +65,7 @@ export function SleepCompiler() {
       const nextProfiledMinutes = measuredMorningRoutineMinutes(
         next,
         todayKey,
-        7,
+        PROFILER_RETENTION_DAYS,
         MINUTES_STEP,
       );
 
@@ -229,6 +236,7 @@ export function SleepCompiler() {
                 <input
                   className="h-12 w-full border border-[#cfd8d1] bg-[#fbfcfb] px-3 text-lg font-semibold text-[#18181b] outline-none focus:border-[#166534]"
                   max={todayKey}
+                  min={retainedStartKey}
                   onChange={(event) =>
                     setRecordDateKey(event.currentTarget.value || todayKey)
                   }
@@ -279,7 +287,7 @@ export function SleepCompiler() {
                                 step.id,
                                 minutes,
                                 todayKey,
-                                7,
+                                PROFILER_RETENTION_DAYS,
                               ),
                             );
                           }}
@@ -482,10 +490,10 @@ function TopLeaks({
   profiler: MorningRoutineProfiler;
   todayKey: string;
 }) {
-  const leaks = useMemo(() => topTimeLeaks(profiler, todayKey, 7, 3), [
-    profiler,
-    todayKey,
-  ]);
+  const leaks = useMemo(
+    () => topTimeLeaks(profiler, todayKey, PROFILER_RETENTION_DAYS, 3),
+    [profiler, todayKey],
+  );
 
   if (leaks.length === 0) {
     return (
@@ -525,7 +533,12 @@ function makeStepId(): string {
 function useProfilerDateKeys() {
   const [dateKeys, setDateKeys] = useState(() => {
     const todayKey = toDateKey(new Date());
-    return { recordDateKey: todayKey, todayKey };
+    const retainedStartKey = addDaysToDateKey(
+      todayKey,
+      -(PROFILER_RETENTION_DAYS - 1),
+    );
+
+    return { recordDateKey: todayKey, retainedStartKey, todayKey };
   });
 
   useEffect(() => {
@@ -539,13 +552,27 @@ function useProfilerDateKeys() {
 
       timeoutId = setTimeout(() => {
         const nextTodayKey = toDateKey(new Date());
-        setDateKeys((current) => ({
-          todayKey: nextTodayKey,
-          recordDateKey:
+        const retainedStartKey = addDaysToDateKey(
+          nextTodayKey,
+          -(PROFILER_RETENTION_DAYS - 1),
+        );
+
+        setDateKeys((current) => {
+          const recordDateKey =
             current.recordDateKey === current.todayKey
               ? nextTodayKey
-              : current.recordDateKey,
-        }));
+              : current.recordDateKey;
+
+          return {
+            todayKey: nextTodayKey,
+            retainedStartKey,
+            recordDateKey: clampDateKey(
+              recordDateKey,
+              retainedStartKey,
+              nextTodayKey,
+            ),
+          };
+        });
         scheduleMidnightUpdate();
       }, delay);
     };
@@ -557,8 +584,32 @@ function useProfilerDateKeys() {
   return {
     ...dateKeys,
     setRecordDateKey: (recordDateKey: string) =>
-      setDateKeys((current) => ({ ...current, recordDateKey })),
+      setDateKeys((current) => ({
+        ...current,
+        recordDateKey: clampDateKey(
+          recordDateKey,
+          current.retainedStartKey,
+          current.todayKey,
+        ),
+      })),
   };
+}
+
+function addDaysToDateKey(dateKey: string, days: number): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + days);
+  return toDateKey(date);
+}
+
+function clampDateKey(dateKey: string, minDateKey: string, maxDateKey: string) {
+  if (dateKey < minDateKey) {
+    return minDateKey;
+  }
+  if (dateKey > maxDateKey) {
+    return maxDateKey;
+  }
+  return dateKey;
 }
 
 function useMorningRoutineProfiler(todayKey: string) {
@@ -638,6 +689,6 @@ function hydrateProfiler(
 
   return {
     steps: parsed.steps,
-    days: pruneToLastNDays(parsed.days, todayKey, 7),
+    days: pruneToLastNDays(parsed.days, todayKey, PROFILER_RETENTION_DAYS),
   };
 }

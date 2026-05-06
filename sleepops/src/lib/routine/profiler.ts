@@ -20,6 +20,7 @@ export type RoutineLeak = {
 };
 
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const UNSAFE_RECORD_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
 export function createDefaultMorningRoutineProfiler(): MorningRoutineProfiler {
   return {
@@ -294,8 +295,12 @@ export function parseProfiler(json: string): MorningRoutineProfiler | null {
 function sanitizeMinutesByStepId(
   value: RoutineDay["minutesByStepId"],
 ): Record<string, number> {
-  const output: Record<string, number> = {};
+  const output = Object.create(null) as Record<string, number>;
   for (const [key, minutes] of Object.entries(value)) {
+    if (UNSAFE_RECORD_KEYS.has(key)) {
+      continue;
+    }
+
     output[key] = clampWholeMinutes(minutes);
   }
   return output;

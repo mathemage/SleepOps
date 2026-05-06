@@ -62,9 +62,15 @@ test("records step durations, persists them, and feeds the measured total into t
 }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("textbox", { name: "Day" })).toHaveValue(
-    /\d{4}-\d{2}-\d{2}/,
-  );
+  const dayInput = page.getByRole("textbox", { name: "Day" });
+
+  await expect(dayInput).toHaveValue(/\d{4}-\d{2}-\d{2}/);
+  await expect(dayInput).toHaveAttribute("min", /\d{4}-\d{2}-\d{2}/);
+  await expect(dayInput).toHaveAttribute("max", /\d{4}-\d{2}-\d{2}/);
+
+  const retainedStartKey = await dayInput.getAttribute("min");
+  await dayInput.fill("2000-01-01");
+  await expect(dayInput).toHaveValue(retainedStartKey!);
 
   await page.getByLabel("Minutes wake").fill("60");
   await page.getByLabel("Minutes hygiene").fill("45");
@@ -86,6 +92,7 @@ test("records step durations, persists them, and feeds the measured total into t
   await expect(page.getByText("Start shutdown by 20:45")).toBeVisible();
   await expect(page.getByRole("definition").filter({ hasText: "06:30" })).toBeVisible();
 
+  await page.getByRole("textbox", { name: "Day" }).fill(retainedStartKey!);
   await page.getByLabel("Minutes wake").fill("0");
   await page.getByLabel("Minutes hygiene").fill("0");
   await page.getByLabel("Minutes out").fill("0");
