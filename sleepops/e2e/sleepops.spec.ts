@@ -56,3 +56,92 @@ test("normalizes typed duration values to the allowed range and step", async ({
     "Reduce the plan by 3h 45m",
   );
 });
+
+test("records step durations, persists them, and feeds the measured total into the sleep contract", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  const dayInput = page.getByRole("textbox", { name: "Day" });
+
+  await expect(dayInput).toHaveValue(/\d{4}-\d{2}-\d{2}/);
+  await expect(dayInput).toHaveAttribute("min", /\d{4}-\d{2}-\d{2}/);
+  await expect(dayInput).toHaveAttribute("max", /\d{4}-\d{2}-\d{2}/);
+
+  const retainedStartKey = await dayInput.getAttribute("min");
+  await dayInput.fill("2000-01-01");
+  await expect(dayInput).toHaveValue(retainedStartKey!);
+
+  await page.getByLabel("Minutes wake").fill("60");
+  await page.getByLabel("Minutes hygiene").fill("45");
+  await page.getByLabel("Minutes out").fill("15");
+
+  await expect(page.getByRole("list", { name: "Top time leaks" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Top time leaks" })).toContainText(
+    "Wake + bathroom",
+  );
+
+  await page.reload();
+
+  await expect(page.getByRole("list", { name: "Top time leaks" })).toContainText(
+    "Hygiene",
+  );
+
+  await page.getByLabel(/Use measured 7-day average/).check();
+
+  await expect(page.getByText("Start shutdown by 20:45")).toBeVisible();
+  await expect(page.getByRole("definition").filter({ hasText: "06:30" })).toBeVisible();
+
+  await page.getByRole("textbox", { name: "Day" }).fill(retainedStartKey!);
+  await page.getByLabel("Minutes wake").fill("0");
+  await page.getByLabel("Minutes hygiene").fill("0");
+  await page.getByLabel("Minutes out").fill("0");
+
+  const measuredAverage = page.getByLabel(/Use measured 7-day average/);
+  await expect(measuredAverage).not.toBeChecked();
+  await expect(measuredAverage).toBeDisabled();
+  await expect(
+    page.getByRole("spinbutton", { name: "Morning routine duration" }),
+  ).toBeEnabled();
+});
+
+test("keeps an intentionally empty routine step list across reloads", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Remove step wake" }).click();
+  await page.getByRole("button", { name: "Remove step meds" }).click();
+  await page.getByRole("button", { name: "Remove step hygiene" }).click();
+  await page.getByRole("button", { name: "Remove step clothes" }).click();
+  await page.getByRole("button", { name: "Remove step out" }).click();
+
+  await expect(page.getByRole("button", { name: /Remove step/ })).toHaveCount(0);
+
+  await page.reload();
+
+  await expect(page.getByRole("button", { name: /Remove step/ })).toHaveCount(0);
+});
+
+test("keeps the profiler usable when browser storage is unavailable", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      get() {
+        throw new DOMException("Storage blocked", "SecurityError");
+      },
+    });
+  });
+
+  await page.goto("/");
+
+  await expect(page.getByRole("heading", { name: "Tonight's shutdown deadline" })).toBeVisible();
+
+  await page.getByLabel("Minutes wake").fill("20");
+
+  await expect(page.getByRole("list", { name: "Top time leaks" })).toContainText(
+    "Wake + bathroom",
+  );
+});
