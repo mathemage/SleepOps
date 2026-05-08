@@ -11,6 +11,7 @@ import {
   setStepMinutesForDay,
   topTimeLeaks,
   totalMinutesForDay,
+  type MorningRoutineProfiler,
 } from "./profiler";
 
 const DEFAULT_STEP_IDS = [
@@ -25,7 +26,9 @@ const DEFAULT_STEP_IDS = [
 
 describe("morning routine profiler", () => {
   it("uses the requested default step titles in chronological order", () => {
-    expect(createDefaultMorningRoutineProfiler().steps).toEqual([
+    const steps = createDefaultMorningRoutineProfiler().steps;
+
+    expect(steps.map(({ id, label }) => ({ id, label }))).toEqual([
       { id: "wake", label: "Wake (boot up)" },
       { id: "wc", label: "WC" },
       { id: "exercise", label: "Ex(ercise)" },
@@ -34,6 +37,9 @@ describe("morning routine profiler", () => {
       { id: "brush-teeth", label: "Brush Teeth" },
       { id: "toilet", label: "Commute/Post-morning" },
     ]);
+    expect(new Set(steps.map((step) => step.classification))).toEqual(
+      new Set(["required-morning"]),
+    );
   });
 
   it("uses 15-minute defaults for built-in steps except the final 20-minute commute step", () => {
@@ -250,6 +256,19 @@ describe("morning routine profiler", () => {
     expect(parseProfiler(serializeProfiler(profiler))).toEqual(profiler);
   });
 
+  it("defaults older persisted steps to required morning classification", () => {
+    const parsed = parseProfiler(
+      JSON.stringify({
+        steps: [{ id: "wake", label: "Wake" }],
+        days: [],
+      }),
+    );
+
+    expect(parsed?.steps).toEqual([
+      { id: "wake", label: "Wake", classification: "required-morning" },
+    ]);
+  });
+
   it("preserves an intentionally empty step list in persisted data", () => {
     const parsed = parseProfiler(JSON.stringify({ steps: [], days: [] }));
 
@@ -265,7 +284,13 @@ describe("morning routine profiler", () => {
   it("sanitizes persisted day minutes and ignores malformed rows", () => {
     const parsed = parseProfiler(
       JSON.stringify({
-        steps: [{ id: "wake", label: "Wake" }],
+        steps: [
+          {
+            id: "wake",
+            label: "Wake",
+            classification: "movable-evening",
+          },
+        ],
         days: [
           {
             date: "2026-05-05",
@@ -276,7 +301,9 @@ describe("morning routine profiler", () => {
       }),
     );
 
-    expect(parsed?.steps).toEqual([{ id: "wake", label: "Wake" }]);
+    expect(parsed?.steps).toEqual([
+      { id: "wake", label: "Wake", classification: "movable-evening" },
+    ]);
     expect(parsed?.days[0]?.date).toBe("2026-05-05");
     expect(Object.getPrototypeOf(parsed?.days[0]?.minutesByStepId)).toBeNull();
     expect(
@@ -311,10 +338,18 @@ describe("morning routine profiler", () => {
   });
 
   it("does not seed dangerous step ids when creating a new day", () => {
-    const profiler = {
+    const profiler: MorningRoutineProfiler = {
       steps: [
-        { id: "wake", label: "Wake (boot up)" },
-        { id: "__proto__", label: "Exploit" },
+        {
+          id: "wake",
+          label: "Wake (boot up)",
+          classification: "required-morning",
+        },
+        {
+          id: "__proto__",
+          label: "Exploit",
+          classification: "required-morning",
+        },
       ],
       days: [],
     };

@@ -1,6 +1,16 @@
+export const ROUTINE_STEP_CLASSIFICATIONS = [
+  "required-morning",
+  "movable-evening",
+  "decision-setup",
+] as const;
+
+export type RoutineStepClassification =
+  (typeof ROUTINE_STEP_CLASSIFICATIONS)[number];
+
 export type RoutineStep = {
   id: string;
   label: string;
+  classification: RoutineStepClassification;
 };
 
 export type RoutineDay = {
@@ -13,6 +23,12 @@ export type MorningRoutineProfiler = {
   days: RoutineDay[];
 };
 
+type StoredRoutineStep = {
+  id: string;
+  label: string;
+  classification?: unknown;
+};
+
 export type RoutineLeak = {
   stepId: string;
   label: string;
@@ -21,14 +37,44 @@ export type RoutineLeak = {
 
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const DEFAULT_STEP_MINUTES = 15;
+export const DEFAULT_ROUTINE_STEP_CLASSIFICATION: RoutineStepClassification =
+  "required-morning";
 const DEFAULT_PROFILER_STEPS: RoutineStep[] = [
-  { id: "wake", label: "Wake (boot up)" },
-  { id: "wc", label: "WC" },
-  { id: "exercise", label: "Ex(ercise)" },
-  { id: "shower", label: "Shower" },
-  { id: "eat", label: "Eat" },
-  { id: "brush-teeth", label: "Brush Teeth" },
-  { id: "toilet", label: "Commute/Post-morning" },
+  {
+    id: "wake",
+    label: "Wake (boot up)",
+    classification: DEFAULT_ROUTINE_STEP_CLASSIFICATION,
+  },
+  {
+    id: "wc",
+    label: "WC",
+    classification: DEFAULT_ROUTINE_STEP_CLASSIFICATION,
+  },
+  {
+    id: "exercise",
+    label: "Ex(ercise)",
+    classification: DEFAULT_ROUTINE_STEP_CLASSIFICATION,
+  },
+  {
+    id: "shower",
+    label: "Shower",
+    classification: DEFAULT_ROUTINE_STEP_CLASSIFICATION,
+  },
+  {
+    id: "eat",
+    label: "Eat",
+    classification: DEFAULT_ROUTINE_STEP_CLASSIFICATION,
+  },
+  {
+    id: "brush-teeth",
+    label: "Brush Teeth",
+    classification: DEFAULT_ROUTINE_STEP_CLASSIFICATION,
+  },
+  {
+    id: "toilet",
+    label: "Commute/Post-morning",
+    classification: DEFAULT_ROUTINE_STEP_CLASSIFICATION,
+  },
 ];
 const BUILT_IN_STEP_IDS = new Set(DEFAULT_PROFILER_STEPS.map((step) => step.id));
 const POST_MORNING_STEP_ID = "toilet";
@@ -126,9 +172,23 @@ export function setStepLabel(
   };
 }
 
+export function setStepClassification(
+  profiler: MorningRoutineProfiler,
+  stepId: string,
+  classification: RoutineStepClassification,
+): MorningRoutineProfiler {
+  return {
+    ...profiler,
+    steps: profiler.steps.map((step) =>
+      step.id === stepId ? { ...step, classification } : step,
+    ),
+  };
+}
+
 export function addStep(
   profiler: MorningRoutineProfiler,
-  step: RoutineStep,
+  step: Omit<RoutineStep, "classification"> &
+    Partial<Pick<RoutineStep, "classification">>,
 ): MorningRoutineProfiler {
   if (!step.id.trim()) {
     throw new RangeError("Step id must be non-empty.");
@@ -138,7 +198,17 @@ export function addStep(
     throw new RangeError(`Step id already exists: ${step.id}`);
   }
 
-  return { ...profiler, steps: [...profiler.steps, step] };
+  return {
+    ...profiler,
+    steps: [
+      ...profiler.steps,
+      {
+        ...step,
+        classification:
+          step.classification ?? DEFAULT_ROUTINE_STEP_CLASSIFICATION,
+      },
+    ],
+  };
 }
 
 export function removeStep(
@@ -285,18 +355,18 @@ export function parseProfiler(json: string): MorningRoutineProfiler | null {
     if (!parsed || typeof parsed !== "object") {
       return null;
     }
-    const candidate = parsed as Partial<MorningRoutineProfiler>;
+    const candidate = parsed as { steps?: unknown; days?: unknown };
     if (!Array.isArray(candidate.steps) || !Array.isArray(candidate.days)) {
       return null;
     }
 
     const steps = candidate.steps
-      .filter((step): step is RoutineStep =>
-        Boolean(step) &&
-        typeof (step as RoutineStep).id === "string" &&
-        typeof (step as RoutineStep).label === "string",
-      )
-      .map((step) => ({ id: step.id, label: step.label }));
+      .filter((step): step is StoredRoutineStep => isStoredRoutineStep(step))
+      .map((step) => ({
+        id: step.id,
+        label: step.label,
+        classification: normalizeStepClassification(step.classification),
+      }));
 
     const days = candidate.days
       .filter((day): day is RoutineDay =>
@@ -314,6 +384,31 @@ export function parseProfiler(json: string): MorningRoutineProfiler | null {
   } catch {
     return null;
   }
+}
+
+export function normalizeStepClassification(
+  value: unknown,
+): RoutineStepClassification {
+  return isRoutineStepClassification(value)
+    ? value
+    : DEFAULT_ROUTINE_STEP_CLASSIFICATION;
+}
+
+function isRoutineStepClassification(
+  value: unknown,
+): value is RoutineStepClassification {
+  return ROUTINE_STEP_CLASSIFICATIONS.some(
+    (classification) => classification === value,
+  );
+}
+
+function isStoredRoutineStep(value: unknown): value is StoredRoutineStep {
+  return (
+    Boolean(value) &&
+    typeof value === "object" &&
+    typeof (value as StoredRoutineStep).id === "string" &&
+    typeof (value as StoredRoutineStep).label === "string"
+  );
 }
 
 function sanitizeMinutesByStepId(
