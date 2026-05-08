@@ -73,18 +73,18 @@ test("records step durations, persists them, and feeds the measured total into t
   await expect(dayInput).toHaveValue(retainedStartKey!);
 
   await page.getByLabel("Minutes wake").fill("60");
-  await page.getByLabel("Minutes hygiene").fill("45");
-  await page.getByLabel("Minutes out").fill("15");
+  await page.getByLabel("Minutes shower").fill("45");
+  await page.getByLabel("Minutes eat").fill("15");
 
   await expect(page.getByRole("list", { name: "Top time leaks" })).toBeVisible();
   await expect(page.getByRole("list", { name: "Top time leaks" })).toContainText(
-    "Wake + bathroom",
+    "Wake (boot up)",
   );
 
   await page.reload();
 
   await expect(page.getByRole("list", { name: "Top time leaks" })).toContainText(
-    "Hygiene",
+    "Shower",
   );
 
   await page.getByLabel(/Use measured 7-day average/).check();
@@ -94,8 +94,8 @@ test("records step durations, persists them, and feeds the measured total into t
 
   await page.getByRole("textbox", { name: "Day" }).fill(retainedStartKey!);
   await page.getByLabel("Minutes wake").fill("0");
-  await page.getByLabel("Minutes hygiene").fill("0");
-  await page.getByLabel("Minutes out").fill("0");
+  await page.getByLabel("Minutes shower").fill("0");
+  await page.getByLabel("Minutes eat").fill("0");
 
   const measuredAverage = page.getByLabel(/Use measured 7-day average/);
   await expect(measuredAverage).not.toBeChecked();
@@ -110,11 +110,9 @@ test("keeps an intentionally empty routine step list across reloads", async ({
 }) => {
   await page.goto("/");
 
-  await page.getByRole("button", { name: "Remove step wake" }).click();
-  await page.getByRole("button", { name: "Remove step meds" }).click();
-  await page.getByRole("button", { name: "Remove step hygiene" }).click();
-  await page.getByRole("button", { name: "Remove step clothes" }).click();
-  await page.getByRole("button", { name: "Remove step out" }).click();
+  while (await page.getByRole("button", { name: /Remove step/ }).count()) {
+    await page.getByRole("button", { name: /Remove step/ }).first().click();
+  }
 
   await expect(page.getByRole("button", { name: /Remove step/ })).toHaveCount(0);
 
@@ -142,6 +140,6 @@ test("keeps the profiler usable when browser storage is unavailable", async ({
   await page.getByLabel("Minutes wake").fill("20");
 
   await expect(page.getByRole("list", { name: "Top time leaks" })).toContainText(
-    "Wake + bathroom",
+    "Wake (boot up)",
   );
 });
