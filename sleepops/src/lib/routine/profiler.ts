@@ -23,6 +23,12 @@ export type MorningRoutineProfiler = {
   days: RoutineDay[];
 };
 
+type StoredRoutineStep = {
+  id: string;
+  label: string;
+  classification?: unknown;
+};
+
 export type RoutineLeak = {
   stepId: string;
   label: string;
@@ -349,23 +355,17 @@ export function parseProfiler(json: string): MorningRoutineProfiler | null {
     if (!parsed || typeof parsed !== "object") {
       return null;
     }
-    const candidate = parsed as Partial<MorningRoutineProfiler>;
+    const candidate = parsed as { steps?: unknown; days?: unknown };
     if (!Array.isArray(candidate.steps) || !Array.isArray(candidate.days)) {
       return null;
     }
 
     const steps = candidate.steps
-      .filter((step): step is RoutineStep =>
-        Boolean(step) &&
-        typeof (step as RoutineStep).id === "string" &&
-        typeof (step as RoutineStep).label === "string",
-      )
+      .filter((step): step is StoredRoutineStep => isStoredRoutineStep(step))
       .map((step) => ({
         id: step.id,
         label: step.label,
-        classification: normalizeStepClassification(
-          (step as Partial<RoutineStep>).classification,
-        ),
+        classification: normalizeStepClassification(step.classification),
       }));
 
     const days = candidate.days
@@ -399,6 +399,15 @@ function isRoutineStepClassification(
 ): value is RoutineStepClassification {
   return ROUTINE_STEP_CLASSIFICATIONS.some(
     (classification) => classification === value,
+  );
+}
+
+function isStoredRoutineStep(value: unknown): value is StoredRoutineStep {
+  return (
+    Boolean(value) &&
+    typeof value === "object" &&
+    typeof (value as StoredRoutineStep).id === "string" &&
+    typeof (value as StoredRoutineStep).label === "string"
   );
 }
 
