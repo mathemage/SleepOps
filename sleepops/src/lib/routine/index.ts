@@ -2,6 +2,7 @@ export {
   addStep,
   clampWholeMinutes,
   createDefaultMorningRoutineProfiler,
+  defaultStepMinutes,
   isDateKey,
   measuredMorningRoutineMinutes,
   parseProfiler,

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addStep,
   createDefaultMorningRoutineProfiler,
+  defaultStepMinutes,
   isDateKey,
   measuredMorningRoutineMinutes,
   parseProfiler,
@@ -12,6 +13,16 @@ import {
   totalMinutesForDay,
 } from "./profiler";
 
+const DEFAULT_STEP_IDS = [
+  "wake",
+  "wc",
+  "exercise",
+  "shower",
+  "eat",
+  "brush-teeth",
+  "toilet",
+] as const;
+
 describe("morning routine profiler", () => {
   it("uses the requested default step titles in chronological order", () => {
     expect(createDefaultMorningRoutineProfiler().steps).toEqual([
@@ -21,8 +32,37 @@ describe("morning routine profiler", () => {
       { id: "shower", label: "Shower" },
       { id: "eat", label: "Eat" },
       { id: "brush-teeth", label: "Brush Teeth" },
-      { id: "toilet", label: "Toilet (optional)" },
+      { id: "toilet", label: "Commute/Post-morning" },
     ]);
+  });
+
+  it("uses 15-minute defaults for built-in steps except the final 20-minute commute step", () => {
+    const profiler = createDefaultMorningRoutineProfiler();
+    const todayKey = "2026-05-05";
+
+    const next = setStepMinutesForDay(
+      profiler,
+      todayKey,
+      "wake",
+      defaultStepMinutes("wake"),
+      todayKey,
+      7,
+    );
+
+    expect(next.days[0]?.minutesByStepId).toEqual({
+      wake: 15,
+      wc: 15,
+      exercise: 15,
+      shower: 15,
+      eat: 15,
+      "brush-teeth": 15,
+      toilet: 20,
+    });
+    expect(totalMinutesForDay(next, todayKey)).toBe(110);
+  });
+
+  it("returns 0 default minutes for unknown step ids", () => {
+    expect(defaultStepMinutes("custom-step")).toBe(0);
   });
 
   it("retains only the last 7 days (inclusive) in date order", () => {
@@ -64,8 +104,19 @@ describe("morning routine profiler", () => {
   });
 
   it("records step minutes per day and reports that day's total", () => {
-    const profiler = createDefaultMorningRoutineProfiler();
     const todayKey = "2026-05-05";
+    const profiler = DEFAULT_STEP_IDS.reduce(
+      (current, stepId) =>
+        setStepMinutesForDay(
+          current,
+          todayKey,
+          stepId,
+          0,
+          todayKey,
+          7,
+        ),
+      createDefaultMorningRoutineProfiler(),
+    );
 
     const next = setStepMinutesForDay(
       profiler,
@@ -82,8 +133,23 @@ describe("morning routine profiler", () => {
   });
 
   it("computes a 7-day average measured total with deterministic rounding", () => {
-    const profiler = createDefaultMorningRoutineProfiler();
     const todayKey = "2026-05-07";
+    const profiler = ["2026-05-06", "2026-05-07"].reduce(
+      (current, dateKey) =>
+        DEFAULT_STEP_IDS.reduce(
+          (next, stepId) =>
+            setStepMinutesForDay(
+              next,
+              dateKey,
+              stepId,
+              0,
+              todayKey,
+              7,
+            ),
+          current,
+        ),
+      createDefaultMorningRoutineProfiler(),
+    );
 
     const withDay1 = setStepMinutesForDay(
       profiler,
@@ -114,7 +180,22 @@ describe("morning routine profiler", () => {
 
   it("identifies the top leaks by total minutes with stable tie-breaking", () => {
     const todayKey = "2026-05-05";
-    let profiler = createDefaultMorningRoutineProfiler();
+    let profiler = ["2026-05-04", "2026-05-05"].reduce(
+      (current, dateKey) =>
+        DEFAULT_STEP_IDS.reduce(
+          (next, stepId) =>
+            setStepMinutesForDay(
+              next,
+              dateKey,
+              stepId,
+              0,
+              todayKey,
+              7,
+            ),
+          current,
+        ),
+      createDefaultMorningRoutineProfiler(),
+    );
     profiler = addStep(profiler, { id: "coffee", label: "Coffee" });
 
     profiler = setStepMinutesForDay(
@@ -227,5 +308,30 @@ describe("morning routine profiler", () => {
     expect(Object.fromEntries(Object.entries(minutesByStepId ?? {}))).toEqual({
       wake: 12,
     });
+  });
+
+  it("does not seed dangerous step ids when creating a new day", () => {
+    const profiler = {
+      steps: [
+        { id: "wake", label: "Wake (boot up)" },
+        { id: "__proto__", label: "Exploit" },
+      ],
+      days: [],
+    };
+
+    const next = setStepMinutesForDay(
+      profiler,
+      "2026-05-05",
+      "wake",
+      15,
+      "2026-05-05",
+      7,
+    );
+
+    expect(Object.getPrototypeOf(next.days[0]?.minutesByStepId)).toBeNull();
+    expect(Object.fromEntries(Object.entries(next.days[0]?.minutesByStepId ?? {})))
+      .toEqual({
+        wake: 15,
+      });
   });
 });
