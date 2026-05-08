@@ -72,6 +72,55 @@ test("shows the updated default morning routine step labels and durations", asyn
   await expect(page.getByText("1h 50m")).toBeVisible();
 });
 
+test("does not add default minutes for custom steps before they are recorded", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await page.getByLabel("New step name").fill("Coffee");
+  await page.getByRole("button", { name: "Add step" }).click();
+
+  await expect(page.locator('input[type="text"][value="Coffee"]')).toBeVisible();
+  await expect(page.locator('input[aria-label^="Minutes "]').last()).toHaveValue("0");
+  await expect(page.getByText("1h 50m")).toBeVisible();
+});
+
+test("includes displayed fallback minutes in the day total for older stored days", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const today = new Date();
+    const dateKey = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, "0"),
+      String(today.getDate()).padStart(2, "0"),
+    ].join("-");
+
+    window.localStorage.setItem(
+      "sleepops.morningRoutineProfiler.v1",
+      JSON.stringify({
+        steps: [
+          { id: "wake", label: "Wake (boot up)" },
+          { id: "wc", label: "WC" },
+          { id: "exercise", label: "Ex(ercise)" },
+          { id: "shower", label: "Shower" },
+          { id: "eat", label: "Eat" },
+          { id: "brush-teeth", label: "Brush Teeth" },
+          { id: "toilet", label: "Commute/Post-morning" },
+        ],
+        days: [{ date: dateKey, minutesByStepId: { wake: 20 } }],
+      }),
+    );
+  });
+
+  await page.goto("/");
+
+  await expect(page.getByLabel("Minutes wake")).toHaveValue("20");
+  await expect(page.getByLabel("Minutes wc")).toHaveValue("15");
+  await expect(page.getByLabel("Minutes toilet")).toHaveValue("20");
+  await expect(page.getByText("1h 55m")).toBeVisible();
+});
+
 test("records step durations, persists them, and feeds the measured total into the sleep contract", async ({
   page,
 }) => {

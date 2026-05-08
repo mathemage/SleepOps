@@ -21,26 +21,32 @@ export type RoutineLeak = {
 
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const DEFAULT_STEP_MINUTES = 15;
+const DEFAULT_PROFILER_STEPS: RoutineStep[] = [
+  { id: "wake", label: "Wake (boot up)" },
+  { id: "wc", label: "WC" },
+  { id: "exercise", label: "Ex(ercise)" },
+  { id: "shower", label: "Shower" },
+  { id: "eat", label: "Eat" },
+  { id: "brush-teeth", label: "Brush Teeth" },
+  { id: "toilet", label: "Commute/Post-morning" },
+];
+const BUILT_IN_STEP_IDS = new Set(DEFAULT_PROFILER_STEPS.map((step) => step.id));
 const POST_MORNING_STEP_ID = "toilet";
 const POST_MORNING_STEP_MINUTES = 20;
 const UNSAFE_RECORD_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
 export function createDefaultMorningRoutineProfiler(): MorningRoutineProfiler {
   return {
-    steps: [
-      { id: "wake", label: "Wake (boot up)" },
-      { id: "wc", label: "WC" },
-      { id: "exercise", label: "Ex(ercise)" },
-      { id: "shower", label: "Shower" },
-      { id: "eat", label: "Eat" },
-      { id: "brush-teeth", label: "Brush Teeth" },
-      { id: "toilet", label: "Commute/Post-morning" },
-    ],
+    steps: DEFAULT_PROFILER_STEPS.map((step) => ({ ...step })),
     days: [],
   };
 }
 
 export function defaultStepMinutes(stepId: string): number {
+  if (!BUILT_IN_STEP_IDS.has(stepId)) {
+    return 0;
+  }
+
   return stepId === POST_MORNING_STEP_ID
     ? POST_MORNING_STEP_MINUTES
     : DEFAULT_STEP_MINUTES;
@@ -171,18 +177,21 @@ export function setStepMinutesForDay(
   const normalizedMinutes = clampWholeMinutes(minutes);
   const currentDayMinutesByStepId =
     profiler.days.find((day) => day.date === dateKey)?.minutesByStepId ??
-    Object.fromEntries(
-      profiler.steps.map((step) => [step.id, defaultStepMinutes(step.id)]),
-    );
+    createDefaultMinutesByStepId(profiler.steps);
+  const nextMinutesByStepId = Object.assign(
+    Object.create(null) as Record<string, number>,
+    currentDayMinutesByStepId,
+  );
+
+  if (!UNSAFE_RECORD_KEYS.has(stepId)) {
+    nextMinutesByStepId[stepId] = normalizedMinutes;
+  }
 
   const nextDays = profiler.days
     .filter((day) => day.date !== dateKey)
     .concat({
       date: dateKey,
-      minutesByStepId: {
-        ...currentDayMinutesByStepId,
-        [stepId]: normalizedMinutes,
-      },
+      minutesByStepId: nextMinutesByStepId,
     });
 
   return {
@@ -318,6 +327,22 @@ function sanitizeMinutesByStepId(
 
     output[key] = clampWholeMinutes(minutes);
   }
+  return output;
+}
+
+function createDefaultMinutesByStepId(
+  steps: RoutineStep[],
+): Record<string, number> {
+  const output = Object.create(null) as Record<string, number>;
+
+  for (const step of steps) {
+    if (UNSAFE_RECORD_KEYS.has(step.id)) {
+      continue;
+    }
+
+    output[step.id] = defaultStepMinutes(step.id);
+  }
+
   return output;
 }
 

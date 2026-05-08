@@ -61,6 +61,10 @@ describe("morning routine profiler", () => {
     expect(totalMinutesForDay(next, todayKey)).toBe(110);
   });
 
+  it("returns 0 default minutes for unknown step ids", () => {
+    expect(defaultStepMinutes("custom-step")).toBe(0);
+  });
+
   it("retains only the last 7 days (inclusive) in date order", () => {
     const days = Array.from({ length: 10 }, (_, index) => ({
       date: `2026-05-${String(index + 1).padStart(2, "0")}`,
@@ -304,5 +308,30 @@ describe("morning routine profiler", () => {
     expect(Object.fromEntries(Object.entries(minutesByStepId ?? {}))).toEqual({
       wake: 12,
     });
+  });
+
+  it("does not seed dangerous step ids when creating a new day", () => {
+    const profiler = {
+      steps: [
+        { id: "wake", label: "Wake (boot up)" },
+        { id: "__proto__", label: "Exploit" },
+      ],
+      days: [],
+    };
+
+    const next = setStepMinutesForDay(
+      profiler,
+      "2026-05-05",
+      "wake",
+      15,
+      "2026-05-05",
+      7,
+    );
+
+    expect(Object.getPrototypeOf(next.days[0]?.minutesByStepId)).toBeNull();
+    expect(Object.fromEntries(Object.entries(next.days[0]?.minutesByStepId ?? {})))
+      .toEqual({
+        wake: 15,
+      });
   });
 });

@@ -19,7 +19,6 @@ import {
   setStepMinutesForDay,
   toDateKey,
   topTimeLeaks,
-  totalMinutesForDay,
   type MorningRoutineProfiler,
 } from "@/lib/routine";
 
@@ -99,6 +98,8 @@ export function SleepCompiler() {
     useProfiledMorningRoutine && profiledMorningRoutineMinutes !== null
       ? profiledMorningRoutineMinutes
       : manualMorningRoutineMinutes;
+  const recordDayMinutesByStepId =
+    profiler.days.find((day) => day.date === recordDateKey)?.minutesByStepId;
 
   const schedule = useMemo(
     () =>
@@ -270,9 +271,10 @@ export function SleepCompiler() {
                 </p>
                 <div className="grid gap-2">
                   {profiler.steps.map((step) => {
-                    const dayMinutes =
-                      profiler.days.find((day) => day.date === recordDateKey)
-                        ?.minutesByStepId[step.id] ?? defaultStepMinutes(step.id);
+                    const dayMinutes = displayedStepMinutes(
+                      recordDayMinutesByStepId,
+                      step.id,
+                    );
 
                     return (
                       <div
@@ -510,17 +512,20 @@ function displayedTotalMinutesForDay(
   profiler: MorningRoutineProfiler,
   dateKey: string,
 ): number {
-  const storedMinutesByStepId =
+  const dayMinutesByStepId =
     profiler.days.find((candidate) => candidate.date === dateKey)?.minutesByStepId;
 
-  if (storedMinutesByStepId) {
-    return totalMinutesForDay(profiler, dateKey);
-  }
-
   return profiler.steps.reduce(
-    (sum, step) => sum + defaultStepMinutes(step.id),
+    (sum, step) => sum + displayedStepMinutes(dayMinutesByStepId, step.id),
     0,
   );
+}
+
+function displayedStepMinutes(
+  dayMinutesByStepId: MorningRoutineProfiler["days"][number]["minutesByStepId"] | undefined,
+  stepId: string,
+): number {
+  return dayMinutesByStepId?.[stepId] ?? defaultStepMinutes(stepId);
 }
 
 function TopLeaks({
