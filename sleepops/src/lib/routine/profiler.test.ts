@@ -13,6 +13,18 @@ import {
 } from "./profiler";
 
 describe("morning routine profiler", () => {
+  it("uses the requested default step titles in chronological order", () => {
+    expect(createDefaultMorningRoutineProfiler().steps).toEqual([
+      { id: "wake", label: "Wake (boot up)" },
+      { id: "wc", label: "WC" },
+      { id: "exercise", label: "Ex(ercise)" },
+      { id: "shower", label: "Shower" },
+      { id: "eat", label: "Eat" },
+      { id: "brush-teeth", label: "Brush Teeth" },
+      { id: "toilet", label: "Toilet (optional)" },
+    ]);
+  });
+
   it("retains only the last 7 days (inclusive) in date order", () => {
     const days = Array.from({ length: 10 }, (_, index) => ({
       date: `2026-05-${String(index + 1).padStart(2, "0")}`,
