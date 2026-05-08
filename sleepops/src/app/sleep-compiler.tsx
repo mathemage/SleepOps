@@ -8,6 +8,7 @@ import {
 } from "@/lib/sleep";
 import {
   addStep,
+  compressMorningRoutine,
   createDefaultMorningRoutineProfiler,
   defaultStepMinutes,
   measuredMorningRoutineMinutes,
@@ -15,11 +16,15 @@ import {
   pruneToLastNDays,
   removeStep,
   serializeProfiler,
+  setStepClassification,
   setStepLabel,
   setStepMinutesForDay,
   toDateKey,
   topTimeLeaks,
+  type CompressedRoutineTask,
   type MorningRoutineProfiler,
+  type RoutineCompression,
+  type RoutineStepClassification,
 } from "@/lib/routine";
 
 const MINUTES_STEP = 5;
@@ -28,6 +33,14 @@ const MAX_BUFFER_MINUTES = 240;
 const PROFILER_RETENTION_DAYS = 7;
 const PROFILER_STORAGE_KEY = "sleepops.morningRoutineProfiler.v1";
 const PROFILER_CHANGE_EVENT = "sleepops.morningRoutineProfiler.change";
+const STEP_CLASSIFICATION_OPTIONS: Array<{
+  value: RoutineStepClassification;
+  label: string;
+}> = [
+  { value: "required-morning", label: "Required morning" },
+  { value: "movable-evening", label: "Move to evening" },
+  { value: "decision-setup", label: "Decision/setup" },
+];
 
 let profilerMemorySnapshot: string | null = null;
 
@@ -100,6 +113,10 @@ export function SleepCompiler() {
       : manualMorningRoutineMinutes;
   const recordDayMinutesByStepId =
     profiler.days.find((day) => day.date === recordDateKey)?.minutesByStepId;
+  const routineCompression: RoutineCompression = useMemo(
+    () => compressMorningRoutine(profiler, recordDayMinutesByStepId),
+    [profiler, recordDayMinutesByStepId],
+  );
 
   const schedule = useMemo(
     () =>
@@ -112,6 +129,10 @@ export function SleepCompiler() {
   );
 
   const hasWarning = schedule.constraintWarning !== null;
+  const applyCompressedRoutine = () => {
+    setManualMorningRoutineMinutes(routineCompression.minimumMorningMinutes);
+    setUseProfiledMorningRoutine(false);
+  };
 
   const results = [
     { label: "Wake time", value: schedule.wakeTime },
@@ -278,7 +299,7 @@ export function SleepCompiler() {
 
                     return (
                       <div
-                        className="grid grid-cols-[1fr_120px_auto] items-center gap-2"
+                        className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_160px_120px_auto] sm:items-center"
                         key={step.id}
                       >
                         <input
@@ -293,6 +314,27 @@ export function SleepCompiler() {
                           type="text"
                           value={step.label}
                         />
+                        <select
+                          aria-label={`Classify ${step.id}`}
+                          className="h-12 w-full border border-[#cfd8d1] bg-[#fbfcfb] px-3 text-sm font-semibold text-[#18181b] outline-none focus:border-[#166534]"
+                          onChange={(event) =>
+                            updateMorningProfiler((current) =>
+                              setStepClassification(
+                                current,
+                                step.id,
+                                event.currentTarget
+                                  .value as RoutineStepClassification,
+                              ),
+                            )
+                          }
+                          value={step.classification}
+                        >
+                          {STEP_CLASSIFICATION_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
                         <input
                           aria-label={`Minutes ${step.id}`}
                           className="h-12 w-full border border-[#cfd8d1] bg-[#fbfcfb] px-3 text-lg font-semibold text-[#18181b] outline-none focus:border-[#166534]"
@@ -393,6 +435,71 @@ export function SleepCompiler() {
             </div>
           </section>
 
+          <section
+            aria-labelledby="routine-compressor-heading"
+            className="border border-[#d8dfda] bg-white p-5 shadow-sm sm:p-6"
+          >
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2
+                  className="text-xl font-semibold"
+                  id="routine-compressor-heading"
+                >
+                  Routine compressor
+                </h2>
+                <p className="mt-1 text-sm text-[#52525b]">
+                  Uses the selected profiler day.
+                </p>
+              </div>
+              <div className="text-sm text-[#52525b]">
+                Profiled total{" "}
+                <strong className="text-[#18181b]">
+                  {formatDuration(routineCompression.totalProfiledMinutes)}
+                </strong>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 lg:grid-cols-3">
+              <CompressionBlock
+                emptyText="No required morning tasks with minutes."
+                listLabel="Minimum viable morning tasks"
+                minutes={routineCompression.minimumMorningMinutes}
+                tasks={routineCompression.minimumMorningTasks}
+                title="Minimum viable morning"
+              />
+              <CompressionBlock
+                emptyText="No tasks marked movable yet."
+                listLabel="Moved evening tasks"
+                minutes={routineCompression.eveningMinutes}
+                tasks={routineCompression.eveningTasks}
+                title="Moved to evening"
+              />
+              <CompressionBlock
+                emptyText="No decision/setup tasks marked yet."
+                listLabel="Evening preparation tasks"
+                minutes={routineCompression.eveningPreparationMinutes}
+                tasks={routineCompression.eveningPreparationTasks}
+                title="Evening preparation block"
+              />
+            </div>
+
+            <div className="mt-5 flex flex-col gap-3 border-t border-[#e4e7e4] pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-[#52525b]">
+                Compressed morning duration
+                <strong className="ml-2 text-lg text-[#18181b]">
+                  {formatDuration(routineCompression.minimumMorningMinutes)}
+                </strong>
+              </div>
+              <button
+                className="h-12 border border-[#166534] bg-[#166534] px-4 text-sm font-semibold text-white hover:bg-[#14532d]"
+                onClick={applyCompressedRoutine}
+                type="button"
+              >
+                Apply compressed duration to sleep contract
+              </button>
+            </div>
+          </section>
+
           <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {results.map((result) => (
               <div
@@ -451,6 +558,48 @@ type DurationControlProps = {
   onChange: (value: number) => void;
   disabled?: boolean;
 };
+
+function CompressionBlock({
+  emptyText,
+  listLabel,
+  minutes,
+  tasks,
+  title,
+}: {
+  emptyText: string;
+  listLabel: string;
+  minutes: number;
+  tasks: CompressedRoutineTask[];
+  title: string;
+}) {
+  return (
+    <div className="min-h-40 border border-[#d8dfda] bg-[#fbfcfb] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="text-sm font-semibold text-[#18181b]">{title}</h3>
+        <strong className="shrink-0 text-sm text-[#18181b]">
+          {formatDuration(minutes)}
+        </strong>
+      </div>
+      {tasks.length === 0 ? (
+        <p className="mt-4 text-sm text-[#52525b]">{emptyText}</p>
+      ) : (
+        <ol aria-label={listLabel} className="mt-4 grid gap-2 text-sm">
+          {tasks.map((task) => (
+            <li
+              className="flex items-center justify-between gap-3 text-[#3f3f46]"
+              key={task.stepId}
+            >
+              <span className="min-w-0 truncate">{task.label}</span>
+              <span className="shrink-0 font-semibold text-[#18181b]">
+                {formatDuration(task.minutes)}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
 
 function DurationControl({
   id,

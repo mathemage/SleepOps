@@ -1,14 +1,18 @@
 export {
+  DEFAULT_ROUTINE_STEP_CLASSIFICATION,
+  ROUTINE_STEP_CLASSIFICATIONS,
   addStep,
   clampWholeMinutes,
   createDefaultMorningRoutineProfiler,
   defaultStepMinutes,
   isDateKey,
   measuredMorningRoutineMinutes,
+  normalizeStepClassification,
   parseProfiler,
   pruneToLastNDays,
   removeStep,
   serializeProfiler,
+  setStepClassification,
   setStepLabel,
   setStepMinutesForDay,
   toDateKey,
@@ -18,4 +22,10 @@ export {
   type RoutineDay,
   type RoutineLeak,
   type RoutineStep,
+  type RoutineStepClassification,
 } from "./profiler";
+export {
+  compressMorningRoutine,
+  type CompressedRoutineTask,
+  type RoutineCompression,
+} from "./compressor";

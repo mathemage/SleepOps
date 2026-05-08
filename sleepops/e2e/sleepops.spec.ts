@@ -69,7 +69,9 @@ test("shows the updated default morning routine step labels and durations", asyn
   await expect(page.getByLabel("Minutes wc")).toHaveValue("15");
   await expect(page.getByLabel("Minutes toilet")).toHaveValue("20");
   await expect(page.getByText("Day total")).toBeVisible();
-  await expect(page.getByText("1h 50m")).toBeVisible();
+  await expect(page.getByText("Day total").locator("..")).toContainText(
+    "1h 50m",
+  );
 });
 
 test("does not add default minutes for custom steps before they are recorded", async ({
@@ -82,7 +84,59 @@ test("does not add default minutes for custom steps before they are recorded", a
 
   await expect(page.locator('input[type="text"][value="Coffee"]')).toBeVisible();
   await expect(page.locator('input[aria-label^="Minutes "]').last()).toHaveValue("0");
-  await expect(page.getByText("1h 50m")).toBeVisible();
+  await expect(page.getByText("Day total").locator("..")).toContainText(
+    "1h 50m",
+  );
+});
+
+test("compresses classified routine tasks and applies the minimum morning", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await page.getByLabel("Minutes wake").fill("10");
+  await page.getByLabel("Minutes wc").fill("5");
+  await page.getByLabel("Minutes exercise").fill("20");
+  await page.getByLabel("Minutes shower").fill("15");
+  await page.getByLabel("Minutes eat").fill("10");
+  await page.getByLabel("Minutes brush-teeth").fill("5");
+  await page.getByLabel("Minutes toilet").fill("30");
+
+  await page.getByLabel("Classify exercise").selectOption("movable-evening");
+  await page.getByLabel("Classify shower").selectOption("movable-evening");
+  await page.getByLabel("Classify eat").selectOption("decision-setup");
+
+  const compressor = page.getByRole("region", { name: "Routine compressor" });
+
+  await expect(
+    compressor.getByRole("list", { name: "Minimum viable morning tasks" }),
+  ).toContainText("Wake (boot up)");
+  await expect(
+    compressor.getByRole("list", { name: "Moved evening tasks" }),
+  ).toContainText("Ex(ercise)");
+  await expect(
+    compressor.getByRole("list", { name: "Moved evening tasks" }),
+  ).toContainText("Shower");
+  await expect(
+    compressor.getByRole("list", { name: "Evening preparation tasks" }),
+  ).toContainText("Eat");
+  await expect(compressor).toContainText("Compressed morning duration");
+  await expect(compressor).toContainText("50m");
+
+  await page
+    .getByRole("button", {
+      name: "Apply compressed duration to sleep contract",
+    })
+    .click();
+
+  await expect(
+    page.getByRole("spinbutton", { name: "Morning routine duration" }),
+  ).toHaveValue("50");
+  await expect(page.getByText("Start shutdown by 21:55")).toBeVisible();
+  await expect(page.getByRole("definition").filter({ hasText: "07:40" }))
+    .toBeVisible();
+  await expect(page.getByRole("definition").filter({ hasText: "22:40" }))
+    .toBeVisible();
 });
 
 test("includes displayed fallback minutes in the day total for older stored days", async ({
@@ -118,7 +172,9 @@ test("includes displayed fallback minutes in the day total for older stored days
   await expect(page.getByLabel("Minutes wake")).toHaveValue("20");
   await expect(page.getByLabel("Minutes wc")).toHaveValue("15");
   await expect(page.getByLabel("Minutes toilet")).toHaveValue("20");
-  await expect(page.getByText("1h 55m")).toBeVisible();
+  await expect(page.getByText("Day total").locator("..")).toContainText(
+    "1h 55m",
+  );
 });
 
 test("records step durations, persists them, and feeds the measured total into the sleep contract", async ({
