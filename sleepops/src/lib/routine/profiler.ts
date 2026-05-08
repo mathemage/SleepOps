@@ -20,6 +20,9 @@ export type RoutineLeak = {
 };
 
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const DEFAULT_STEP_MINUTES = 15;
+const POST_MORNING_STEP_ID = "toilet";
+const POST_MORNING_STEP_MINUTES = 20;
 const UNSAFE_RECORD_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
 export function createDefaultMorningRoutineProfiler(): MorningRoutineProfiler {
@@ -31,10 +34,16 @@ export function createDefaultMorningRoutineProfiler(): MorningRoutineProfiler {
       { id: "shower", label: "Shower" },
       { id: "eat", label: "Eat" },
       { id: "brush-teeth", label: "Brush Teeth" },
-      { id: "toilet", label: "Toilet (optional)" },
+      { id: "toilet", label: "Commute/Post-morning" },
     ],
     days: [],
   };
+}
+
+export function defaultStepMinutes(stepId: string): number {
+  return stepId === POST_MORNING_STEP_ID
+    ? POST_MORNING_STEP_MINUTES
+    : DEFAULT_STEP_MINUTES;
 }
 
 export function clampWholeMinutes(value: unknown, max = 900): number {
@@ -160,14 +169,18 @@ export function setStepMinutesForDay(
   }
 
   const normalizedMinutes = clampWholeMinutes(minutes);
+  const currentDayMinutesByStepId =
+    profiler.days.find((day) => day.date === dateKey)?.minutesByStepId ??
+    Object.fromEntries(
+      profiler.steps.map((step) => [step.id, defaultStepMinutes(step.id)]),
+    );
 
   const nextDays = profiler.days
     .filter((day) => day.date !== dateKey)
     .concat({
       date: dateKey,
       minutesByStepId: {
-        ...(profiler.days.find((day) => day.date === dateKey)?.minutesByStepId ??
-          {}),
+        ...currentDayMinutesByStepId,
         [stepId]: normalizedMinutes,
       },
     });

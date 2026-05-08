@@ -9,6 +9,7 @@ import {
 import {
   addStep,
   createDefaultMorningRoutineProfiler,
+  defaultStepMinutes,
   measuredMorningRoutineMinutes,
   parseProfiler,
   pruneToLastNDays,
@@ -271,7 +272,7 @@ export function SleepCompiler() {
                   {profiler.steps.map((step) => {
                     const dayMinutes =
                       profiler.days.find((day) => day.date === recordDateKey)
-                        ?.minutesByStepId[step.id] ?? 0;
+                        ?.minutesByStepId[step.id] ?? defaultStepMinutes(step.id);
 
                     return (
                       <div
@@ -373,7 +374,7 @@ export function SleepCompiler() {
                 <div className="flex items-center justify-between gap-4">
                   <span>Day total</span>
                   <strong className="text-[#18181b]">
-                    {formatDuration(totalMinutesForDay(profiler, recordDateKey))}
+                    {formatDuration(displayedTotalMinutesForDay(profiler, recordDateKey))}
                   </strong>
                 </div>
                 <div className="flex items-center justify-between gap-4">
@@ -503,6 +504,23 @@ function readMinutes(input: HTMLInputElement, max: number, step: number): number
   const steppedMinutes = Math.round(roundedMinutes / step) * step;
 
   return Math.min(max, Math.max(0, steppedMinutes));
+}
+
+function displayedTotalMinutesForDay(
+  profiler: MorningRoutineProfiler,
+  dateKey: string,
+): number {
+  const storedMinutesByStepId =
+    profiler.days.find((candidate) => candidate.date === dateKey)?.minutesByStepId;
+
+  if (storedMinutesByStepId) {
+    return totalMinutesForDay(profiler, dateKey);
+  }
+
+  return profiler.steps.reduce(
+    (sum, step) => sum + defaultStepMinutes(step.id),
+    0,
+  );
 }
 
 function TopLeaks({

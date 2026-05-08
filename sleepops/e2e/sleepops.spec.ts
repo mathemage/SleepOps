@@ -57,6 +57,21 @@ test("normalizes typed duration values to the allowed range and step", async ({
   );
 });
 
+test("shows the updated default morning routine step labels and durations", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await expect(page.getByLabel("Step name toilet")).toHaveValue(
+    "Commute/Post-morning",
+  );
+  await expect(page.getByLabel("Minutes wake")).toHaveValue("15");
+  await expect(page.getByLabel("Minutes wc")).toHaveValue("15");
+  await expect(page.getByLabel("Minutes toilet")).toHaveValue("20");
+  await expect(page.getByText("Day total")).toBeVisible();
+  await expect(page.getByText("1h 50m")).toBeVisible();
+});
+
 test("records step durations, persists them, and feeds the measured total into the sleep contract", async ({
   page,
 }) => {
@@ -72,9 +87,13 @@ test("records step durations, persists them, and feeds the measured total into t
   await dayInput.fill("2000-01-01");
   await expect(dayInput).toHaveValue(retainedStartKey!);
 
+  await page.getByLabel("Minutes wc").fill("0");
+  await page.getByLabel("Minutes exercise").fill("0");
   await page.getByLabel("Minutes wake").fill("60");
   await page.getByLabel("Minutes shower").fill("45");
   await page.getByLabel("Minutes eat").fill("15");
+  await page.getByLabel("Minutes brush-teeth").fill("0");
+  await page.getByLabel("Minutes toilet").fill("0");
 
   await expect(page.getByRole("list", { name: "Top time leaks" })).toBeVisible();
   await expect(page.getByRole("list", { name: "Top time leaks" })).toContainText(
@@ -93,9 +112,13 @@ test("records step durations, persists them, and feeds the measured total into t
   await expect(page.getByRole("definition").filter({ hasText: "06:30" })).toBeVisible();
 
   await page.getByRole("textbox", { name: "Day" }).fill(retainedStartKey!);
+  await page.getByLabel("Minutes wc").fill("0");
+  await page.getByLabel("Minutes exercise").fill("0");
   await page.getByLabel("Minutes wake").fill("0");
   await page.getByLabel("Minutes shower").fill("0");
   await page.getByLabel("Minutes eat").fill("0");
+  await page.getByLabel("Minutes brush-teeth").fill("0");
+  await page.getByLabel("Minutes toilet").fill("0");
 
   const measuredAverage = page.getByLabel(/Use measured 7-day average/);
   await expect(measuredAverage).not.toBeChecked();
