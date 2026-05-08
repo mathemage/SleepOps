@@ -25,11 +25,13 @@ const UNSAFE_RECORD_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 export function createDefaultMorningRoutineProfiler(): MorningRoutineProfiler {
   return {
     steps: [
-      { id: "wake", label: "Wake + bathroom" },
-      { id: "meds", label: "Meds + water" },
-      { id: "hygiene", label: "Hygiene" },
-      { id: "clothes", label: "Clothes" },
-      { id: "out", label: "Out the door" },
+      { id: "wake", label: "Wake (boot up)" },
+      { id: "wc", label: "WC" },
+      { id: "exercise", label: "Ex(ercise)" },
+      { id: "shower", label: "Shower" },
+      { id: "eat", label: "Eat" },
+      { id: "brush-teeth", label: "Brush Teeth" },
+      { id: "toilet", label: "Toilet (optional)" },
     ],
     days: [],
   };
