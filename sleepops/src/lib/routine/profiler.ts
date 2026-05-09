@@ -26,7 +26,7 @@ export type MorningRoutineProfiler = {
 type StoredRoutineStep = {
   id: string;
   label: string;
-  classification?: unknown;
+  classification?: string;
 };
 
 export type RoutineLeak = {
@@ -361,7 +361,8 @@ export function parseProfiler(json: string): MorningRoutineProfiler | null {
     }
 
     const steps = candidate.steps
-      .filter((step): step is StoredRoutineStep => isStoredRoutineStep(step))
+      .map(parseStoredRoutineStep)
+      .filter((step): step is StoredRoutineStep => step !== null)
       .map((step) => ({
         id: step.id,
         label: step.label,
@@ -402,13 +403,29 @@ function isRoutineStepClassification(
   );
 }
 
-function isStoredRoutineStep(value: unknown): value is StoredRoutineStep {
-  return (
-    Boolean(value) &&
-    typeof value === "object" &&
-    typeof (value as StoredRoutineStep).id === "string" &&
-    typeof (value as StoredRoutineStep).label === "string"
-  );
+function parseStoredRoutineStep(value: unknown): StoredRoutineStep | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as {
+    id?: unknown;
+    label?: unknown;
+    classification?: unknown;
+  };
+
+  if (typeof candidate.id !== "string" || typeof candidate.label !== "string") {
+    return null;
+  }
+
+  return {
+    id: candidate.id,
+    label: candidate.label,
+    classification:
+      typeof candidate.classification === "string"
+        ? candidate.classification
+        : undefined,
+  };
 }
 
 function sanitizeMinutesByStepId(
