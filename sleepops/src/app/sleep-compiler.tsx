@@ -39,7 +39,7 @@ const STEP_CLASSIFICATION_OPTIONS: Array<{
 }> = [
   { value: "required-morning", label: "Required morning" },
   { value: "movable-evening", label: "Move to evening" },
-  { value: "decision-setup", label: "Decision/setup" },
+  { value: "decision-setup", label: "Prep tonight" },
 ];
 
 let profilerMemorySnapshot: string | null = null;
@@ -138,7 +138,15 @@ export function SleepCompiler() {
     { label: "Wake time", value: schedule.wakeTime },
     { label: "Latest bedtime", value: schedule.latestBedtime },
     { label: "Shutdown start", value: schedule.shutdownStartTime },
-    { label: "Day flex", value: formatDuration(schedule.availableFlexMinutes) },
+    hasWarning
+      ? {
+          label: "Overbooked by",
+          value: formatDuration(Math.abs(schedule.availableFlexMinutes)),
+        }
+      : {
+          label: "Free time left today",
+          value: formatDuration(schedule.availableFlexMinutes),
+        },
   ];
 
   const rail = [
@@ -171,6 +179,11 @@ export function SleepCompiler() {
               <h1 className="mt-2 max-w-lg text-4xl font-semibold leading-tight text-[#18181b] sm:text-5xl">
                 Tonight&apos;s shutdown deadline
               </h1>
+              <p className="mt-3 max-w-2xl text-sm text-[#52525b]">
+                Enter tomorrow&apos;s work start, morning routine, and buffer.
+                SleepOps turns that into tonight&apos;s shutdown time, bedtime,
+                and wake-up plan.
+              </p>
             </div>
 
             <div
@@ -448,7 +461,9 @@ export function SleepCompiler() {
                   Routine compressor
                 </h2>
                 <p className="mt-1 text-sm text-[#52525b]">
-                  Uses the selected profiler day.
+                  Uses the selected profiler day. Mark each step as required in
+                  the morning, movable to the evening, or something you can prep
+                  tonight ahead of time.
                 </p>
               </div>
               <div className="text-sm text-[#52525b]">
@@ -475,11 +490,11 @@ export function SleepCompiler() {
                 title="Moved to evening"
               />
               <CompressionBlock
-                emptyText="No decision/setup tasks marked yet."
-                listLabel="Evening preparation tasks"
+                emptyText="No tasks marked for tonight's prep yet."
+                listLabel="Tonight's prep tasks"
                 minutes={routineCompression.eveningPreparationMinutes}
                 tasks={routineCompression.eveningPreparationTasks}
-                title="Evening preparation block"
+                title="Prep tonight"
               />
             </div>
 
@@ -495,7 +510,7 @@ export function SleepCompiler() {
                 onClick={applyCompressedRoutine}
                 type="button"
               >
-                Apply compressed duration to sleep contract
+                Use compressed duration in tonight&apos;s schedule
               </button>
             </div>
           </section>
@@ -518,13 +533,19 @@ export function SleepCompiler() {
 
           <section className="border border-[#d8dfda] bg-white p-5 shadow-sm sm:p-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <h2 className="text-xl font-semibold">Tonight rail</h2>
+              <div>
+                <h2 className="text-xl font-semibold">Tonight timeline</h2>
+                <p className="mt-1 text-sm text-[#52525b]">
+                  The checkpoints below show when shutdown starts, when you need
+                  to be in bed, and when tomorrow begins.
+                </p>
+              </div>
               <p className="text-sm text-[#52525b]">
                 {hasWarning
-                  ? "The protected block is over capacity."
+                  ? "Your shutdown-and-sleep window no longer fits before work."
                   : `${formatDuration(
                       schedule.availableFlexMinutes,
-                    )} remains outside protected blocks.`}
+                    )} is still free before shutdown begins.`}
               </p>
             </div>
 
