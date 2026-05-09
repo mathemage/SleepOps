@@ -138,10 +138,15 @@ export function SleepCompiler() {
     { label: "Wake time", value: schedule.wakeTime },
     { label: "Latest bedtime", value: schedule.latestBedtime },
     { label: "Shutdown start", value: schedule.shutdownStartTime },
-    {
-      label: "Free time left today",
-      value: formatDuration(schedule.availableFlexMinutes),
-    },
+    hasWarning
+      ? {
+          label: "Overbooked by",
+          value: formatDuration(Math.abs(schedule.availableFlexMinutes)),
+        }
+      : {
+          label: "Free time left today",
+          value: formatDuration(schedule.availableFlexMinutes),
+        },
   ];
 
   const rail = [
@@ -537,7 +542,7 @@ export function SleepCompiler() {
               </div>
               <p className="text-sm text-[#52525b]">
                 {hasWarning
-                  ? "Your shutdown and sleep window no longer fits before work."
+                  ? "Your shutdown and sleep window no longer fit before work."
                   : `${formatDuration(
                       schedule.availableFlexMinutes,
                     )} is still free before shutdown begins.`}

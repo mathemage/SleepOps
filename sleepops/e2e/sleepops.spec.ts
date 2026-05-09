@@ -40,6 +40,11 @@ test("recalculates for a 10-6 day and warns on impossible input", async ({
 
   await expect(constraintAlert).toContainText("Constraint violated");
   await expect(constraintAlert).toContainText("Reduce the plan by 45m");
+  await expect(page.getByText("Overbooked by")).toBeVisible();
+  await expect(page.getByText("Overbooked by").locator("..")).toContainText("45m");
+  await expect(
+    page.getByText("Your shutdown and sleep window no longer fit before work."),
+  ).toBeVisible();
 });
 
 test("normalizes typed duration values to the allowed range and step", async ({
