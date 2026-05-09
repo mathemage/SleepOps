@@ -43,7 +43,7 @@ test("recalculates for a 10-6 day and warns on impossible input", async ({
   await expect(page.getByText("Overbooked by")).toBeVisible();
   await expect(page.getByText("Overbooked by").locator("..")).toContainText("45m");
   await expect(
-    page.getByText("Your shutdown and sleep window no longer fit before work."),
+    page.getByText("Your shutdown-and-sleep window no longer fits before work."),
   ).toBeVisible();
 });
 
@@ -130,7 +130,7 @@ test("compresses classified routine tasks and applies the minimum morning", asyn
     compressor.getByRole("list", { name: "Moved evening tasks" }),
   ).toContainText("Shower");
   await expect(
-    compressor.getByRole("list", { name: "Tonight prep tasks" }),
+    compressor.getByRole("list", { name: "Tonight's prep tasks" }),
   ).toContainText("Eat");
   await expect(compressor).toContainText(
     "Mark each step as required in the morning, movable to the evening, or something you can prep tonight ahead of time.",

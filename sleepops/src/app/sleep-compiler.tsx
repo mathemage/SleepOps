@@ -491,7 +491,7 @@ export function SleepCompiler() {
               />
               <CompressionBlock
                 emptyText="No tasks marked for tonight's prep yet."
-                listLabel="Tonight prep tasks"
+                listLabel="Tonight's prep tasks"
                 minutes={routineCompression.eveningPreparationMinutes}
                 tasks={routineCompression.eveningPreparationTasks}
                 title="Prep tonight"
@@ -542,7 +542,7 @@ export function SleepCompiler() {
               </div>
               <p className="text-sm text-[#52525b]">
                 {hasWarning
-                  ? "Your shutdown and sleep window no longer fit before work."
+                  ? "Your shutdown-and-sleep window no longer fits before work."
                   : `${formatDuration(
                       schedule.availableFlexMinutes,
                     )} is still free before shutdown begins.`}
