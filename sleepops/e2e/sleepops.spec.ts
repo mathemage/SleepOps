@@ -4,11 +4,18 @@ test("compiles the default 9-5 sleep contract", async ({ page }) => {
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "Tonight's shutdown deadline" })).toBeVisible();
+  await expect(
+    page.getByText(
+      "SleepOps turns that into tonight's shutdown time, bedtime, and wake-up plan.",
+    ),
+  ).toBeVisible();
   await expect(page.getByText("Start shutdown by 21:30")).toBeVisible();
   await expect(page.getByText("Wake time")).toBeVisible();
   await expect(page.getByRole("definition").filter({ hasText: "07:15" })).toBeVisible();
   await expect(page.getByText("Latest bedtime")).toBeVisible();
   await expect(page.getByRole("definition").filter({ hasText: "22:15" })).toBeVisible();
+  await expect(page.getByText("Free time left today")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tonight timeline" })).toBeVisible();
 });
 
 test("recalculates for a 10-6 day and warns on impossible input", async ({
@@ -118,14 +125,19 @@ test("compresses classified routine tasks and applies the minimum morning", asyn
     compressor.getByRole("list", { name: "Moved evening tasks" }),
   ).toContainText("Shower");
   await expect(
-    compressor.getByRole("list", { name: "Evening preparation tasks" }),
+    compressor.getByRole("list", { name: "Tonight prep tasks" }),
   ).toContainText("Eat");
+  await expect(compressor).toContainText(
+    "Mark each step as required in the morning, movable to the evening, or something you can prep tonight ahead of time.",
+  );
+  await expect(page.getByLabel("Classify eat")).toHaveValue("decision-setup");
+  await expect(page.getByLabel("Classify eat")).toContainText("Prep tonight");
   await expect(compressor).toContainText("Compressed morning duration");
   await expect(compressor).toContainText("50m");
 
   await page
     .getByRole("button", {
-      name: "Apply compressed duration to sleep contract",
+      name: "Use compressed duration in tonight's schedule",
     })
     .click();
 
