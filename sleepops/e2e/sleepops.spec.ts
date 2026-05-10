@@ -1,5 +1,9 @@
 import { expect, test } from "playwright/test";
 
+test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-05-10T12:00:00"));
+});
+
 test("compiles the default 9-5 sleep contract", async ({ page }) => {
   await page.goto("/");
 
@@ -154,6 +158,55 @@ test("compresses classified routine tasks and applies the minimum morning", asyn
     .toBeVisible();
   await expect(page.getByRole("definition").filter({ hasText: "22:40" }))
     .toBeVisible();
+});
+
+test("previews shutdown mode and advances one physical action at a time", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await page.getByLabel("Classify shower").selectOption("movable-evening");
+  await page.getByLabel("Classify eat").selectOption("decision-setup");
+
+  await page.getByRole("button", { name: "Preview shutdown mode" }).click();
+
+  const assistant = page.getByRole("region", {
+    name: "Evening shutdown assistant",
+  });
+
+  await expect(assistant).toBeVisible();
+  await expect(assistant).toContainText("Close laptop and put it away.");
+  await expect(assistant).not.toContainText("Do evening task: Shower");
+  await expect(
+    page.getByRole("spinbutton", { name: "Morning routine duration" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Routine compressor" }),
+  ).toHaveCount(0);
+
+  await assistant.getByRole("button", { name: "Done" }).click();
+
+  await expect(assistant).toContainText("Do evening task: Shower");
+  await expect(assistant).not.toContainText("Close laptop and put it away.");
+
+  await assistant.getByRole("button", { name: "Done" }).click();
+  await expect(assistant).toContainText("Prep for morning: Eat");
+
+  await assistant.getByRole("button", { name: "Done" }).click();
+  await expect(assistant).toContainText("Brush teeth.");
+
+  await assistant.getByRole("button", { name: "Done" }).click();
+  await expect(assistant).toContainText("Get in bed and turn lights out.");
+
+  await assistant.getByRole("button", { name: "Done" }).click();
+  await expect(assistant).toContainText("Lights out");
+  await expect(assistant).toContainText("Shutdown complete. Go to bed now.");
+
+  await assistant.getByRole("button", { name: "Back to planning" }).click();
+
+  await expect(
+    page.getByRole("heading", { name: "Tonight's shutdown deadline" }),
+  ).toBeVisible();
 });
 
 test("includes displayed fallback minutes in the day total for older stored days", async ({

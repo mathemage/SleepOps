@@ -3,8 +3,15 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   REQUIRED_SLEEP_MINUTES,
+  buildShutdownActions,
+  buildShutdownWindow,
   buildSleepSchedule,
+  formatClockTime,
   formatDuration,
+  getShutdownProgress,
+  isShutdownWindowActive,
+  type ShutdownProgress,
+  type ShutdownWindow,
 } from "@/lib/sleep";
 import {
   addStep,
@@ -51,6 +58,9 @@ export function SleepCompiler() {
   const [useProfiledMorningRoutine, setUseProfiledMorningRoutine] =
     useState(false);
   const [commuteBufferMinutes, setCommuteBufferMinutes] = useState(30);
+  const [shutdownPreviewMode, setShutdownPreviewMode] = useState(false);
+  const [completedShutdownActions, setCompletedShutdownActions] = useState(0);
+  const currentTime = useCurrentClockTime();
 
   const { recordDateKey, retainedStartKey, setRecordDateKey, todayKey } =
     useProfilerDateKeys();
@@ -129,10 +139,64 @@ export function SleepCompiler() {
   );
 
   const hasWarning = schedule.constraintWarning !== null;
+  const shutdownWindow = useMemo(
+    () =>
+      buildShutdownWindow({
+        lightsOutTime: schedule.latestBedtime,
+        shutdownMinutes: schedule.shutdownMinutes,
+      }),
+    [schedule.latestBedtime, schedule.shutdownMinutes],
+  );
+  const shutdownActions = useMemo(
+    () =>
+      buildShutdownActions({
+        eveningTasks: routineCompression.eveningTasks,
+        eveningPreparationTasks: routineCompression.eveningPreparationTasks,
+      }),
+    [
+      routineCompression.eveningTasks,
+      routineCompression.eveningPreparationTasks,
+    ],
+  );
+  const shutdownProgress = useMemo(
+    () => getShutdownProgress(shutdownActions, completedShutdownActions),
+    [shutdownActions, completedShutdownActions],
+  );
+  const isShutdownActive =
+    currentTime !== null && isShutdownWindowActive(shutdownWindow, currentTime);
+  const showShutdownAssistant =
+    shutdownPreviewMode || (!hasWarning && isShutdownActive);
+
   const applyCompressedRoutine = () => {
     setManualMorningRoutineMinutes(routineCompression.minimumMorningMinutes);
     setUseProfiledMorningRoutine(false);
   };
+
+  const enterShutdownPreview = () => {
+    setCompletedShutdownActions(0);
+    setShutdownPreviewMode(true);
+  };
+
+  const exitShutdownPreview = () => {
+    setShutdownPreviewMode(false);
+    setCompletedShutdownActions(0);
+  };
+
+  if (showShutdownAssistant) {
+    return (
+      <ShutdownAssistant
+        isPreview={shutdownPreviewMode}
+        onAdvance={() =>
+          setCompletedShutdownActions((current) =>
+            Math.min(current + 1, shutdownActions.length),
+          )
+        }
+        onExitPreview={exitShutdownPreview}
+        progress={shutdownProgress}
+        window={shutdownWindow}
+      />
+    );
+  }
 
   const results = [
     { label: "Wake time", value: schedule.wakeTime },
@@ -204,6 +268,14 @@ export function SleepCompiler() {
                   : `Start shutdown by ${schedule.shutdownStartTime}`}
               </p>
             </div>
+
+            <button
+              className="h-12 w-full border border-[#166534] bg-[#166534] px-4 text-sm font-semibold text-white hover:bg-[#14532d] sm:w-auto"
+              onClick={enterShutdownPreview}
+              type="button"
+            >
+              Preview shutdown mode
+            </button>
           </div>
 
           <div className="grid gap-3 text-sm text-[#52525b]">
@@ -580,6 +652,67 @@ type DurationControlProps = {
   disabled?: boolean;
 };
 
+function ShutdownAssistant({
+  isPreview,
+  onAdvance,
+  onExitPreview,
+  progress,
+  window: shutdownWindow,
+}: {
+  isPreview: boolean;
+  onAdvance: () => void;
+  onExitPreview: () => void;
+  progress: ShutdownProgress;
+  window: ShutdownWindow;
+}) {
+  const isComplete = progress.status === "complete";
+  const actionNumber = progress.completedActions + 1;
+
+  return (
+    <main className="min-h-screen bg-[#101513] px-4 py-5 text-white sm:px-6 lg:px-8">
+      <section
+        aria-label="Evening shutdown assistant"
+        className="mx-auto flex min-h-[calc(100vh-2.5rem)] w-full max-w-3xl flex-col justify-center gap-8 border border-[#34443c] bg-[#16211c] p-5 shadow-sm sm:p-8"
+      >
+        <div className="space-y-3">
+          <p className="text-sm font-semibold text-[#86efac]">
+            Shutdown {shutdownWindow.shutdownStartTime}-{shutdownWindow.lightsOutTime}
+          </p>
+          <h1 className="text-4xl font-semibold leading-tight sm:text-6xl">
+            {isComplete ? "Lights out" : progress.action.label}
+          </h1>
+          <p className="text-sm text-[#d1d5db]">
+            {isComplete
+              ? "Shutdown complete. Go to bed now."
+              : `Action ${actionNumber} of ${progress.totalActions}`}
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row">
+          {progress.status === "active" ? (
+            <button
+              className="h-14 border border-[#bbf7d0] bg-[#bbf7d0] px-5 text-base font-semibold text-[#101513] hover:bg-[#86efac]"
+              onClick={onAdvance}
+              type="button"
+            >
+              Done
+            </button>
+          ) : null}
+          {isPreview ? (
+            <button
+              className="h-14 border border-[#4b5f55] bg-transparent px-5 text-base font-semibold text-white hover:bg-[#1f2d27]"
+              onClick={onExitPreview}
+              type="button"
+            >
+              Back to planning
+            </button>
+          ) : null}
+        </div>
+      </section>
+    </main>
+  );
+}
+
 function CompressionBlock({
   emptyText,
   listLabel,
@@ -749,6 +882,24 @@ function makeStepId(): string {
   }
 
   return `step_${Math.random().toString(16).slice(2)}${Date.now().toString(16)}`;
+}
+
+function useCurrentClockTime(): string | null {
+  const [currentTime, setCurrentTime] = useState<string | null>(null);
+
+  useEffect(() => {
+    const updateCurrentTime = () => {
+      const now = new Date();
+      setCurrentTime(formatClockTime(now.getHours() * 60 + now.getMinutes()));
+    };
+
+    updateCurrentTime();
+    const intervalId = setInterval(updateCurrentTime, 30_000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  return currentTime;
 }
 
 function useProfilerDateKeys() {
