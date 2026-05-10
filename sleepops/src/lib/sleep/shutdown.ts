@@ -22,6 +22,12 @@ export type ShutdownAction = {
   label: string;
 };
 
+export type ShutdownRoutineTaskSelection = {
+  eveningTasks: ShutdownRoutineTask[];
+  eveningPreparationTasks: ShutdownRoutineTask[];
+  totalMinutes: number;
+};
+
 export type ShutdownProgress =
   | {
       status: "active";
@@ -104,6 +110,43 @@ export function buildShutdownActions({
       label: "Get in bed and turn lights out.",
     },
   ];
+}
+
+export function selectShutdownRoutineTasks({
+  availableMinutes,
+  eveningTasks = [],
+  eveningPreparationTasks = [],
+}: {
+  availableMinutes: number;
+  eveningTasks?: ShutdownRoutineTask[];
+  eveningPreparationTasks?: ShutdownRoutineTask[];
+}): ShutdownRoutineTaskSelection {
+  let remainingMinutes = Math.max(0, Math.floor(availableMinutes));
+  let totalMinutes = 0;
+
+  const selectTask = (task: ShutdownRoutineTask) => {
+    const minutes = task.minutes ?? 0;
+    if (minutes > remainingMinutes) {
+      return null;
+    }
+
+    remainingMinutes -= minutes;
+    totalMinutes += minutes;
+    return task;
+  };
+
+  const selectedEveningTasks = eveningTasks
+    .map(selectTask)
+    .filter((task): task is ShutdownRoutineTask => task !== null);
+  const selectedEveningPreparationTasks = eveningPreparationTasks
+    .map(selectTask)
+    .filter((task): task is ShutdownRoutineTask => task !== null);
+
+  return {
+    eveningTasks: selectedEveningTasks,
+    eveningPreparationTasks: selectedEveningPreparationTasks,
+    totalMinutes,
+  };
 }
 
 export function getShutdownProgress(

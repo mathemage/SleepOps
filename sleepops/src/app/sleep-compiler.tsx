@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
+  DEFAULT_SHUTDOWN_MINUTES,
+  MAX_SHUTDOWN_MINUTES,
   REQUIRED_SLEEP_MINUTES,
   buildShutdownActions,
   buildShutdownWindow,
@@ -10,6 +12,8 @@ import {
   formatDuration,
   getShutdownProgress,
   isShutdownWindowActive,
+  parseClockTime,
+  selectShutdownRoutineTasks,
   type ShutdownProgress,
   type ShutdownWindow,
 } from "@/lib/sleep";
@@ -64,7 +68,7 @@ export function SleepCompiler() {
       sessionKey: "",
       completedActions: 0,
     });
-  const currentTime = useCurrentClockTime();
+  const currentClock = useCurrentClock();
 
   const { recordDateKey, retainedStartKey, setRecordDateKey, todayKey } =
     useProfilerDateKeys();
@@ -131,6 +135,18 @@ export function SleepCompiler() {
     () => compressMorningRoutine(profiler, recordDayMinutesByStepId),
     [profiler, recordDayMinutesByStepId],
   );
+  const selectedShutdownTasks = useMemo(
+    () =>
+      selectShutdownRoutineTasks({
+        availableMinutes: MAX_SHUTDOWN_MINUTES - DEFAULT_SHUTDOWN_MINUTES,
+        eveningTasks: routineCompression.eveningTasks,
+        eveningPreparationTasks: routineCompression.eveningPreparationTasks,
+      }),
+    [
+      routineCompression.eveningTasks,
+      routineCompression.eveningPreparationTasks,
+    ],
+  );
 
   const schedule = useMemo(
     () =>
@@ -138,8 +154,15 @@ export function SleepCompiler() {
         workStart,
         morningRoutineMinutes: effectiveMorningRoutineMinutes,
         commuteBufferMinutes,
+        shutdownMinutes:
+          DEFAULT_SHUTDOWN_MINUTES + selectedShutdownTasks.totalMinutes,
       }),
-    [workStart, effectiveMorningRoutineMinutes, commuteBufferMinutes],
+    [
+      workStart,
+      effectiveMorningRoutineMinutes,
+      commuteBufferMinutes,
+      selectedShutdownTasks.totalMinutes,
+    ],
   );
 
   const hasWarning = schedule.constraintWarning !== null;
@@ -154,18 +177,21 @@ export function SleepCompiler() {
   const shutdownActions = useMemo(
     () =>
       buildShutdownActions({
-        eveningTasks: routineCompression.eveningTasks,
-        eveningPreparationTasks: routineCompression.eveningPreparationTasks,
+        eveningTasks: selectedShutdownTasks.eveningTasks,
+        eveningPreparationTasks: selectedShutdownTasks.eveningPreparationTasks,
       }),
     [
-      routineCompression.eveningTasks,
-      routineCompression.eveningPreparationTasks,
+      selectedShutdownTasks.eveningTasks,
+      selectedShutdownTasks.eveningPreparationTasks,
     ],
   );
   const shutdownActionKey = shutdownActions
     .map((action) => action.id)
     .join("|");
   const shutdownSessionKey = [
+    currentClock
+      ? shutdownWindowInstanceKey(shutdownWindow, currentClock)
+      : "pending",
     shutdownWindow.shutdownStartTime,
     shutdownWindow.lightsOutTime,
     shutdownActionKey,
@@ -181,7 +207,9 @@ export function SleepCompiler() {
     () => getShutdownProgress(shutdownActions, completedShutdownActions),
     [shutdownActions, completedShutdownActions],
   );
-  const isShutdownActive = isShutdownWindowActive(shutdownWindow, currentTime);
+  const isShutdownActive =
+    currentClock !== null &&
+    isShutdownWindowActive(shutdownWindow, currentClock.time);
   const showShutdownAssistant = shutdownPreviewMode || isShutdownActive;
 
   const applyCompressedRoutine = () => {
@@ -201,6 +229,10 @@ export function SleepCompiler() {
     setShutdownPreviewMode(false);
     setShutdownProgressState({ sessionKey: "", completedActions: 0 });
   };
+
+  if (currentClock === null) {
+    return <SleepOpsLoading />;
+  }
 
   if (showShutdownAssistant) {
     return (
@@ -688,6 +720,25 @@ type ShutdownProgressState = {
   completedActions: number;
 };
 
+type ClockSnapshot = {
+  dateKey: string;
+  previousDateKey: string;
+  time: string;
+};
+
+function SleepOpsLoading() {
+  return (
+    <main className="min-h-screen bg-[#f6f8f7] px-4 py-5 text-[#18181b] sm:px-6 lg:px-8">
+      <section
+        aria-label="SleepOps loading"
+        className="mx-auto flex min-h-[calc(100vh-2.5rem)] w-full max-w-3xl items-center border border-[#d8dfda] bg-white p-5 shadow-sm sm:p-8"
+      >
+        <p className="text-sm font-semibold text-[#166534]">SleepOps</p>
+      </section>
+    </main>
+  );
+}
+
 function ShutdownAssistant({
   isPreview,
   onAdvance,
@@ -920,23 +971,47 @@ function makeStepId(): string {
   return `step_${Math.random().toString(16).slice(2)}${Date.now().toString(16)}`;
 }
 
-function useCurrentClockTime(): string {
-  const [currentTime, setCurrentTime] = useState(readCurrentClockTime);
+function useCurrentClock(): ClockSnapshot | null {
+  const [currentClock, setCurrentClock] = useState<ClockSnapshot | null>(null);
 
   useEffect(() => {
+    const updateClock = () => setCurrentClock(readCurrentClock());
+    const initTimeoutId = setTimeout(updateClock, 0);
     const intervalId = setInterval(() => {
-      setCurrentTime(readCurrentClockTime());
+      setCurrentClock(readCurrentClock());
     }, 30_000);
 
-    return () => clearInterval(intervalId);
+    return () => {
+      clearTimeout(initTimeoutId);
+      clearInterval(intervalId);
+    };
   }, []);
 
-  return currentTime;
+  return currentClock;
 }
 
-function readCurrentClockTime(): string {
+function readCurrentClock(): ClockSnapshot {
   const now = new Date();
-  return formatClockTime(now.getHours() * 60 + now.getMinutes());
+  const dateKey = toDateKey(now);
+
+  return {
+    dateKey,
+    previousDateKey: addDaysToDateKey(dateKey, -1),
+    time: formatClockTime(now.getHours() * 60 + now.getMinutes()),
+  };
+}
+
+function shutdownWindowInstanceKey(
+  window: ShutdownWindow,
+  clock: ClockSnapshot,
+): string {
+  const startMinutes = parseClockTime(window.shutdownStartTime);
+  const lightsOutMinutes = parseClockTime(window.lightsOutTime);
+  const currentMinutes = parseClockTime(clock.time);
+  const startsOnPreviousDay =
+    startMinutes >= lightsOutMinutes && currentMinutes < lightsOutMinutes;
+
+  return startsOnPreviousDay ? clock.previousDateKey : clock.dateKey;
 }
 
 function useProfilerDateKeys() {

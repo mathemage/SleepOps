@@ -16,9 +16,11 @@ export {
   buildShutdownWindow,
   getShutdownProgress,
   isShutdownWindowActive,
+  selectShutdownRoutineTasks,
   type ShutdownAction,
   type ShutdownProgress,
   type ShutdownRoutineTask,
+  type ShutdownRoutineTaskSelection,
   type ShutdownWindow,
   type ShutdownWindowInput,
 } from "./shutdown";

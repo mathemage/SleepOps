@@ -4,6 +4,7 @@ import {
   buildShutdownWindow,
   getShutdownProgress,
   isShutdownWindowActive,
+  selectShutdownRoutineTasks,
 } from "./shutdown";
 
 describe("shutdown assistant", () => {
@@ -92,6 +93,24 @@ describe("shutdown assistant", () => {
       "Prep for morning: Brush Teeth",
       "Get in bed and turn lights out.",
     ]);
+  });
+
+  it("keeps known-duration routine tasks outside shutdown when they do not fit", () => {
+    const selection = selectShutdownRoutineTasks({
+      availableMinutes: 30,
+      eveningTasks: [{ stepId: "exercise", label: "Exercise", minutes: 60 }],
+      eveningPreparationTasks: [
+        { stepId: "bag", label: "Pack bag", minutes: 5 },
+      ],
+    });
+
+    expect(selection).toEqual({
+      eveningTasks: [],
+      eveningPreparationTasks: [
+        { stepId: "bag", label: "Pack bag", minutes: 5 },
+      ],
+      totalMinutes: 5,
+    });
   });
 
   it("tracks the current action and clear completion state", () => {

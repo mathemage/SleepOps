@@ -198,11 +198,35 @@ test("compresses classified routine tasks and applies the minimum morning", asyn
   await expect(
     page.getByRole("spinbutton", { name: "Morning routine duration" }),
   ).toHaveValue("50");
-  await expect(page.getByText("Start shutdown by 21:55")).toBeVisible();
+  await expect(page.getByText("Start shutdown by 21:25")).toBeVisible();
   await expect(page.getByRole("definition").filter({ hasText: "07:40" }))
     .toBeVisible();
   await expect(page.getByRole("definition").filter({ hasText: "22:40" }))
     .toBeVisible();
+});
+
+test("keeps moved tasks outside shutdown mode when they do not fit", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await page.getByLabel("Minutes exercise").fill("60");
+  await page.getByLabel("Classify exercise").selectOption("movable-evening");
+
+  await expect(page.getByText("Shutdown duration").locator("..")).toContainText(
+    "45m",
+  );
+
+  await page.getByRole("button", { name: "Preview shutdown mode" }).click();
+
+  const assistant = page.getByRole("region", {
+    name: "Evening shutdown assistant",
+  });
+
+  await assistant.getByRole("button", { name: "Done" }).click();
+
+  await expect(assistant).not.toContainText("Do evening task: Ex(ercise)");
+  await expect(assistant).toContainText("Dental Care.");
 });
 
 test("previews shutdown mode and advances one physical action at a time", async ({
@@ -352,6 +376,9 @@ test("keeps an intentionally empty routine step list across reloads", async ({
   page,
 }) => {
   await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "Tonight's shutdown deadline" }),
+  ).toBeVisible();
 
   while (await page.getByRole("button", { name: /Remove step/ }).count()) {
     await page.getByRole("button", { name: /Remove step/ }).first().click();
@@ -360,6 +387,9 @@ test("keeps an intentionally empty routine step list across reloads", async ({
   await expect(page.getByRole("button", { name: /Remove step/ })).toHaveCount(0);
 
   await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Tonight's shutdown deadline" }),
+  ).toBeVisible();
 
   await expect(page.getByRole("button", { name: /Remove step/ })).toHaveCount(0);
 });
