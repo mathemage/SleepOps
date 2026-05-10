@@ -79,6 +79,23 @@ test("shows active shutdown mode during the shutdown window even when overbooked
   ).toHaveCount(0);
 });
 
+test("loads directly into active shutdown mode during the default shutdown window", async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date("2026-05-10T21:30:00Z"));
+  await page.goto("/");
+
+  const assistant = page.getByRole("region", {
+    name: "Evening shutdown assistant",
+  });
+
+  await expect(assistant).toBeVisible();
+  await expect(assistant).toContainText("Close laptop and put it away.");
+  await expect(
+    page.getByRole("spinbutton", { name: "Morning routine duration" }),
+  ).toHaveCount(0);
+});
+
 test("normalizes typed duration values to the allowed range and step", async ({
   page,
 }) => {
@@ -221,7 +238,7 @@ test("previews shutdown mode and advances one physical action at a time", async 
   await expect(assistant).toContainText("Prep for morning: Eat");
 
   await assistant.getByRole("button", { name: "Done" }).click();
-  await expect(assistant).toContainText("Brush teeth.");
+  await expect(assistant).toContainText("Dental Care.");
 
   await assistant.getByRole("button", { name: "Done" }).click();
   await expect(assistant).toContainText("Get in bed and turn lights out.");

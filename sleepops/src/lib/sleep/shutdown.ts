@@ -86,8 +86,8 @@ export function buildShutdownActions({
     })),
   ];
 
-  const hasBrushTeethAction = taskActions.some((action) =>
-    action.label.toLowerCase().includes("brush teeth"),
+  const hasDentalCareAction = taskActions.some((action) =>
+    isDentalCareActionLabel(action.label),
   );
 
   return [
@@ -96,12 +96,12 @@ export function buildShutdownActions({
       label: "Close laptop and put it away.",
     },
     ...taskActions,
-    ...(hasBrushTeethAction
+    ...(hasDentalCareAction
       ? []
       : [
           {
-            id: "brush-teeth",
-            label: "Brush teeth.",
+            id: "dental-care",
+            label: "Dental Care.",
           },
         ]),
     {
@@ -148,4 +148,12 @@ function assertShutdownMinutes(shutdownMinutes: number): void {
       `shutdownMinutes must be between ${MIN_SHUTDOWN_MINUTES} and ${MAX_SHUTDOWN_MINUTES}.`,
     );
   }
+}
+
+function isDentalCareActionLabel(label: string): boolean {
+  const normalizedLabel = label.toLowerCase();
+  return (
+    normalizedLabel.includes("brush teeth") ||
+    normalizedLabel.includes("dental care")
+  );
 }

@@ -86,7 +86,26 @@ describe("shutdown assistant", () => {
       "Do evening task: Mobility",
       "Prep for morning: Pack bag",
       "Prep for morning: Choose clothes",
-      "Brush teeth.",
+      "Dental Care.",
+      "Get in bed and turn lights out.",
+    ]);
+  });
+
+  it("does not add default dental care when an evening task already covers it", () => {
+    const actions = buildShutdownActions({
+      eveningPreparationTasks: [
+        { stepId: "brush-teeth", label: "Brush Teeth" },
+      ],
+    });
+
+    expect(
+      actions.filter((action) =>
+        /brush teeth|dental care/i.test(action.label),
+      ),
+    ).toHaveLength(1);
+    expect(actions.map((action) => action.label)).toEqual([
+      "Close laptop and put it away.",
+      "Prep for morning: Brush Teeth",
       "Get in bed and turn lights out.",
     ]);
   });
@@ -104,7 +123,7 @@ describe("shutdown assistant", () => {
     });
     expect(getShutdownProgress(actions, 2)).toMatchObject({
       status: "active",
-      action: { id: "brush-teeth" },
+      action: { id: "dental-care" },
       completedActions: 2,
       totalActions: 4,
     });

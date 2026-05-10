@@ -181,8 +181,7 @@ export function SleepCompiler() {
     () => getShutdownProgress(shutdownActions, completedShutdownActions),
     [shutdownActions, completedShutdownActions],
   );
-  const isShutdownActive =
-    currentTime !== null && isShutdownWindowActive(shutdownWindow, currentTime);
+  const isShutdownActive = isShutdownWindowActive(shutdownWindow, currentTime);
   const showShutdownAssistant = shutdownPreviewMode || isShutdownActive;
 
   const applyCompressedRoutine = () => {
@@ -921,22 +920,23 @@ function makeStepId(): string {
   return `step_${Math.random().toString(16).slice(2)}${Date.now().toString(16)}`;
 }
 
-function useCurrentClockTime(): string | null {
-  const [currentTime, setCurrentTime] = useState<string | null>(null);
+function useCurrentClockTime(): string {
+  const [currentTime, setCurrentTime] = useState(readCurrentClockTime);
 
   useEffect(() => {
-    const updateCurrentTime = () => {
-      const now = new Date();
-      setCurrentTime(formatClockTime(now.getHours() * 60 + now.getMinutes()));
-    };
-
-    updateCurrentTime();
-    const intervalId = setInterval(updateCurrentTime, 30_000);
+    const intervalId = setInterval(() => {
+      setCurrentTime(readCurrentClockTime());
+    }, 30_000);
 
     return () => clearInterval(intervalId);
   }, []);
 
   return currentTime;
+}
+
+function readCurrentClockTime(): string {
+  const now = new Date();
+  return formatClockTime(now.getHours() * 60 + now.getMinutes());
 }
 
 function useProfilerDateKeys() {
