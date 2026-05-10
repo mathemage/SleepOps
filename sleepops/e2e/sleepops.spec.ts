@@ -1,5 +1,9 @@
 import { expect, test } from "playwright/test";
 
+test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-05-10T12:00:00Z"));
+});
+
 test("compiles the default 9-5 sleep contract", async ({ page }) => {
   await page.goto("/");
 
@@ -45,6 +49,51 @@ test("recalculates for a 10-6 day and warns on impossible input", async ({
   await expect(
     page.getByText("Your shutdown-and-sleep window no longer fits before work."),
   ).toBeVisible();
+});
+
+test("shows active shutdown mode during the shutdown window even when overbooked", async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date("2026-05-10T09:30:00Z"));
+  await page.goto("/");
+
+  await page.getByLabel("Work start time").fill("10:00");
+  await page
+    .getByRole("spinbutton", { name: "Morning routine duration" })
+    .fill("840");
+  await page
+    .getByRole("spinbutton", { name: "Commute / buffer duration" })
+    .fill("60");
+
+  const assistant = page.getByRole("region", {
+    name: "Evening shutdown assistant",
+  });
+
+  await expect(assistant).toBeVisible();
+  await expect(assistant).toContainText("Close laptop and put it away.");
+  await expect(
+    page.getByRole("spinbutton", { name: "Morning routine duration" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Routine compressor" }),
+  ).toHaveCount(0);
+});
+
+test("loads directly into active shutdown mode during the default shutdown window", async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date("2026-05-10T21:30:00Z"));
+  await page.goto("/");
+
+  const assistant = page.getByRole("region", {
+    name: "Evening shutdown assistant",
+  });
+
+  await expect(assistant).toBeVisible();
+  await expect(assistant).toContainText("Close laptop and put it away.");
+  await expect(
+    page.getByRole("spinbutton", { name: "Morning routine duration" }),
+  ).toHaveCount(0);
 });
 
 test("normalizes typed duration values to the allowed range and step", async ({
@@ -149,11 +198,84 @@ test("compresses classified routine tasks and applies the minimum morning", asyn
   await expect(
     page.getByRole("spinbutton", { name: "Morning routine duration" }),
   ).toHaveValue("50");
-  await expect(page.getByText("Start shutdown by 21:55")).toBeVisible();
+  await expect(page.getByText("Start shutdown by 21:25")).toBeVisible();
   await expect(page.getByRole("definition").filter({ hasText: "07:40" }))
     .toBeVisible();
   await expect(page.getByRole("definition").filter({ hasText: "22:40" }))
     .toBeVisible();
+});
+
+test("keeps moved tasks outside shutdown mode when they do not fit", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await page.getByLabel("Minutes exercise").fill("60");
+  await page.getByLabel("Classify exercise").selectOption("movable-evening");
+
+  await expect(page.getByText("Shutdown duration").locator("..")).toContainText(
+    "45m",
+  );
+
+  await page.getByRole("button", { name: "Preview shutdown mode" }).click();
+
+  const assistant = page.getByRole("region", {
+    name: "Evening shutdown assistant",
+  });
+
+  await assistant.getByRole("button", { name: "Done" }).click();
+
+  await expect(assistant).not.toContainText("Do evening task: Ex(ercise)");
+  await expect(assistant).toContainText("Dental Care.");
+});
+
+test("previews shutdown mode and advances one physical action at a time", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await page.getByLabel("Classify shower").selectOption("movable-evening");
+  await page.getByLabel("Classify eat").selectOption("decision-setup");
+
+  await page.getByRole("button", { name: "Preview shutdown mode" }).click();
+
+  const assistant = page.getByRole("region", {
+    name: "Evening shutdown assistant",
+  });
+
+  await expect(assistant).toBeVisible();
+  await expect(assistant).toContainText("Close laptop and put it away.");
+  await expect(assistant).not.toContainText("Do evening task: Shower");
+  await expect(
+    page.getByRole("spinbutton", { name: "Morning routine duration" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Routine compressor" }),
+  ).toHaveCount(0);
+
+  await assistant.getByRole("button", { name: "Done" }).click();
+
+  await expect(assistant).toContainText("Do evening task: Shower");
+  await expect(assistant).not.toContainText("Close laptop and put it away.");
+
+  await assistant.getByRole("button", { name: "Done" }).click();
+  await expect(assistant).toContainText("Prep for morning: Eat");
+
+  await assistant.getByRole("button", { name: "Done" }).click();
+  await expect(assistant).toContainText("Dental Care.");
+
+  await assistant.getByRole("button", { name: "Done" }).click();
+  await expect(assistant).toContainText("Get in bed and turn lights out.");
+
+  await assistant.getByRole("button", { name: "Done" }).click();
+  await expect(assistant).toContainText("Lights out");
+  await expect(assistant).toContainText("Shutdown complete. Go to bed now.");
+
+  await assistant.getByRole("button", { name: "Back to planning" }).click();
+
+  await expect(
+    page.getByRole("heading", { name: "Tonight's shutdown deadline" }),
+  ).toBeVisible();
 });
 
 test("includes displayed fallback minutes in the day total for older stored days", async ({
@@ -254,6 +376,9 @@ test("keeps an intentionally empty routine step list across reloads", async ({
   page,
 }) => {
   await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "Tonight's shutdown deadline" }),
+  ).toBeVisible();
 
   while (await page.getByRole("button", { name: /Remove step/ }).count()) {
     await page.getByRole("button", { name: /Remove step/ }).first().click();
@@ -262,6 +387,9 @@ test("keeps an intentionally empty routine step list across reloads", async ({
   await expect(page.getByRole("button", { name: /Remove step/ })).toHaveCount(0);
 
   await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Tonight's shutdown deadline" }),
+  ).toBeVisible();
 
   await expect(page.getByRole("button", { name: /Remove step/ })).toHaveCount(0);
 });

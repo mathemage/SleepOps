@@ -1,6 +1,8 @@
 export {
   DAY_MINUTES,
   DEFAULT_SHUTDOWN_MINUTES,
+  MAX_SHUTDOWN_MINUTES,
+  MIN_SHUTDOWN_MINUTES,
   REQUIRED_SLEEP_MINUTES,
   buildSleepSchedule,
   formatClockTime,
@@ -9,3 +11,16 @@ export {
   type SleepSchedule,
   type SleepScheduleInput,
 } from "./schedule";
+export {
+  buildShutdownActions,
+  buildShutdownWindow,
+  getShutdownProgress,
+  isShutdownWindowActive,
+  selectShutdownRoutineTasks,
+  type ShutdownAction,
+  type ShutdownProgress,
+  type ShutdownRoutineTask,
+  type ShutdownRoutineTaskSelection,
+  type ShutdownWindow,
+  type ShutdownWindowInput,
+} from "./shutdown";
