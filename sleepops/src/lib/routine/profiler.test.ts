@@ -269,6 +269,33 @@ describe("morning routine profiler", () => {
     ]);
   });
 
+  it("normalizes only narrowed string persisted step classifications", () => {
+    const parsed = parseProfiler(
+      JSON.stringify({
+        steps: [
+          { id: "wake", label: "Wake", classification: "movable-evening" },
+          { id: "shower", label: "Shower", classification: "invalid" },
+          { id: "eat", label: "Eat", classification: 7 },
+          {
+            id: "bag",
+            label: "Pack bag",
+            classification: { value: "decision-setup" },
+          },
+          { id: 7, label: "Bad id", classification: "decision-setup" },
+          { id: "bad-label", label: null, classification: "decision-setup" },
+        ],
+        days: [],
+      }),
+    );
+
+    expect(parsed?.steps).toEqual([
+      { id: "wake", label: "Wake", classification: "movable-evening" },
+      { id: "shower", label: "Shower", classification: "required-morning" },
+      { id: "eat", label: "Eat", classification: "required-morning" },
+      { id: "bag", label: "Pack bag", classification: "required-morning" },
+    ]);
+  });
+
   it("preserves an intentionally empty step list in persisted data", () => {
     const parsed = parseProfiler(JSON.stringify({ steps: [], days: [] }));
 
