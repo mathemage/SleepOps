@@ -51,6 +51,34 @@ test("recalculates for a 10-6 day and warns on impossible input", async ({
   ).toBeVisible();
 });
 
+test("shows active shutdown mode during the shutdown window even when overbooked", async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date("2026-05-10T09:30:00Z"));
+  await page.goto("/");
+
+  await page.getByLabel("Work start time").fill("10:00");
+  await page
+    .getByRole("spinbutton", { name: "Morning routine duration" })
+    .fill("840");
+  await page
+    .getByRole("spinbutton", { name: "Commute / buffer duration" })
+    .fill("60");
+
+  const assistant = page.getByRole("region", {
+    name: "Evening shutdown assistant",
+  });
+
+  await expect(assistant).toBeVisible();
+  await expect(assistant).toContainText("Close laptop and put it away.");
+  await expect(
+    page.getByRole("spinbutton", { name: "Morning routine duration" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Routine compressor" }),
+  ).toHaveCount(0);
+});
+
 test("normalizes typed duration values to the allowed range and step", async ({
   page,
 }) => {

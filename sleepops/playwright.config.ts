@@ -6,6 +6,7 @@ export default defineConfig({
   timeout: 30_000,
   use: {
     baseURL: "http://127.0.0.1:3000",
+    timezoneId: "UTC",
     trace: "retain-on-failure",
   },
   webServer: {

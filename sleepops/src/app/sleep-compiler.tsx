@@ -183,8 +183,7 @@ export function SleepCompiler() {
   );
   const isShutdownActive =
     currentTime !== null && isShutdownWindowActive(shutdownWindow, currentTime);
-  const showShutdownAssistant =
-    shutdownPreviewMode || (!hasWarning && isShutdownActive);
+  const showShutdownAssistant = shutdownPreviewMode || isShutdownActive;
 
   const applyCompressedRoutine = () => {
     setManualMorningRoutineMinutes(routineCompression.minimumMorningMinutes);
