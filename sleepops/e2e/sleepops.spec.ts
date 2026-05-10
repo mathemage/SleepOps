@@ -1,7 +1,7 @@
 import { expect, test } from "playwright/test";
 
 test.beforeEach(async ({ page }) => {
-  await page.clock.setFixedTime(new Date("2026-05-10T12:00:00"));
+  await page.clock.setFixedTime(new Date("2026-05-10T12:00:00Z"));
 });
 
 test("compiles the default 9-5 sleep contract", async ({ page }) => {

@@ -59,7 +59,11 @@ export function SleepCompiler() {
     useState(false);
   const [commuteBufferMinutes, setCommuteBufferMinutes] = useState(30);
   const [shutdownPreviewMode, setShutdownPreviewMode] = useState(false);
-  const [completedShutdownActions, setCompletedShutdownActions] = useState(0);
+  const [shutdownProgressState, setShutdownProgressState] =
+    useState<ShutdownProgressState>({
+      sessionKey: "",
+      completedActions: 0,
+    });
   const currentTime = useCurrentClockTime();
 
   const { recordDateKey, retainedStartKey, setRecordDateKey, todayKey } =
@@ -158,6 +162,21 @@ export function SleepCompiler() {
       routineCompression.eveningPreparationTasks,
     ],
   );
+  const shutdownActionKey = shutdownActions
+    .map((action) => action.id)
+    .join("|");
+  const shutdownSessionKey = [
+    shutdownWindow.shutdownStartTime,
+    shutdownWindow.lightsOutTime,
+    shutdownActionKey,
+  ].join("|");
+  const shutdownProgressKey = `${
+    shutdownPreviewMode ? "preview" : "active"
+  }:${shutdownSessionKey}`;
+  const completedShutdownActions =
+    shutdownProgressState.sessionKey === shutdownProgressKey
+      ? shutdownProgressState.completedActions
+      : 0;
   const shutdownProgress = useMemo(
     () => getShutdownProgress(shutdownActions, completedShutdownActions),
     [shutdownActions, completedShutdownActions],
@@ -173,13 +192,16 @@ export function SleepCompiler() {
   };
 
   const enterShutdownPreview = () => {
-    setCompletedShutdownActions(0);
+    setShutdownProgressState({
+      sessionKey: `preview:${shutdownSessionKey}`,
+      completedActions: 0,
+    });
     setShutdownPreviewMode(true);
   };
 
   const exitShutdownPreview = () => {
     setShutdownPreviewMode(false);
-    setCompletedShutdownActions(0);
+    setShutdownProgressState({ sessionKey: "", completedActions: 0 });
   };
 
   if (showShutdownAssistant) {
@@ -187,9 +209,20 @@ export function SleepCompiler() {
       <ShutdownAssistant
         isPreview={shutdownPreviewMode}
         onAdvance={() =>
-          setCompletedShutdownActions((current) =>
-            Math.min(current + 1, shutdownActions.length),
-          )
+          setShutdownProgressState((current) => {
+            const currentCompletedActions =
+              current.sessionKey === shutdownProgressKey
+                ? current.completedActions
+                : 0;
+
+            return {
+              sessionKey: shutdownProgressKey,
+              completedActions: Math.min(
+                currentCompletedActions + 1,
+                shutdownActions.length,
+              ),
+            };
+          })
         }
         onExitPreview={exitShutdownPreview}
         progress={shutdownProgress}
@@ -650,6 +683,11 @@ type DurationControlProps = {
   value: number;
   onChange: (value: number) => void;
   disabled?: boolean;
+};
+
+type ShutdownProgressState = {
+  sessionKey: string;
+  completedActions: number;
 };
 
 function ShutdownAssistant({
