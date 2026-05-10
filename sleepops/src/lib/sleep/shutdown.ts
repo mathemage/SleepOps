@@ -77,14 +77,12 @@ export function buildShutdownActions({
   eveningPreparationTasks?: ShutdownRoutineTask[];
 } = {}): ShutdownAction[] {
   const taskActions = [
-    ...eveningTasks.map((task) => ({
-      id: `evening:${task.stepId}`,
-      label: `Do evening task: ${task.label}`,
-    })),
-    ...eveningPreparationTasks.map((task) => ({
-      id: `prep:${task.stepId}`,
-      label: `Prep for morning: ${task.label}`,
-    })),
+    ...eveningTasks.map((task) =>
+      buildShutdownTaskAction(task, `evening:${task.stepId}`, "Do evening task"),
+    ),
+    ...eveningPreparationTasks.map((task) =>
+      buildShutdownTaskAction(task, `prep:${task.stepId}`, "Prep for morning"),
+    ),
   ];
 
   const hasDentalCareAction = taskActions.some((action) =>
@@ -94,7 +92,7 @@ export function buildShutdownActions({
   return [
     {
       id: "close-laptop",
-      label: "Close laptop and put it away.",
+      label: "Close laptop. Set the phone into Do Not Disturb mode.",
     },
     ...taskActions,
     ...(hasDentalCareAction
@@ -102,12 +100,16 @@ export function buildShutdownActions({
       : [
           {
             id: "dental-care",
-            label: "Dental Care.",
+            label: "Dental care",
           },
         ]),
     {
+      id: "toilet-reading",
+      label: "Toilet (Reading)",
+    },
+    {
       id: "lights-out",
-      label: "Get in bed and turn lights out.",
+      label: "Lights out (Headspace, Audible, podcasts)",
     },
   ];
 }
@@ -182,4 +184,22 @@ function isDentalCareActionLabel(label: string): boolean {
     normalizedLabel.includes("brush teeth") ||
     normalizedLabel.includes("dental care")
   );
+}
+
+function buildShutdownTaskAction(
+  task: ShutdownRoutineTask,
+  id: string,
+  prefix: string,
+): ShutdownAction {
+  if (isDentalCareActionLabel(task.label)) {
+    return {
+      id,
+      label: "Dental care",
+    };
+  }
+
+  return {
+    id,
+    label: `${prefix}: ${task.label}`,
+  };
 }

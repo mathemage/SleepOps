@@ -70,7 +70,9 @@ test("shows active shutdown mode during the shutdown window even when overbooked
   });
 
   await expect(assistant).toBeVisible();
-  await expect(assistant).toContainText("Close laptop and put it away.");
+  await expect(assistant).toContainText(
+    "Close laptop. Set the phone into Do Not Disturb mode.",
+  );
   await expect(
     page.getByRole("spinbutton", { name: "Morning routine duration" }),
   ).toHaveCount(0);
@@ -90,7 +92,9 @@ test("loads directly into active shutdown mode during the default shutdown windo
   });
 
   await expect(assistant).toBeVisible();
-  await expect(assistant).toContainText("Close laptop and put it away.");
+  await expect(assistant).toContainText(
+    "Close laptop. Set the phone into Do Not Disturb mode.",
+  );
   await expect(
     page.getByRole("spinbutton", { name: "Morning routine duration" }),
   ).toHaveCount(0);
@@ -226,7 +230,7 @@ test("keeps moved tasks outside shutdown mode when they do not fit", async ({
   await assistant.getByRole("button", { name: "Done" }).click();
 
   await expect(assistant).not.toContainText("Do evening task: Ex(ercise)");
-  await expect(assistant).toContainText("Dental Care.");
+  await expect(assistant).toContainText("Dental care");
 });
 
 test("previews shutdown mode and advances one physical action at a time", async ({
@@ -244,7 +248,9 @@ test("previews shutdown mode and advances one physical action at a time", async 
   });
 
   await expect(assistant).toBeVisible();
-  await expect(assistant).toContainText("Close laptop and put it away.");
+  await expect(assistant).toContainText(
+    "Close laptop. Set the phone into Do Not Disturb mode.",
+  );
   await expect(assistant).not.toContainText("Do evening task: Shower");
   await expect(
     page.getByRole("spinbutton", { name: "Morning routine duration" }),
@@ -256,16 +262,23 @@ test("previews shutdown mode and advances one physical action at a time", async 
   await assistant.getByRole("button", { name: "Done" }).click();
 
   await expect(assistant).toContainText("Do evening task: Shower");
-  await expect(assistant).not.toContainText("Close laptop and put it away.");
+  await expect(assistant).not.toContainText(
+    "Close laptop. Set the phone into Do Not Disturb mode.",
+  );
 
   await assistant.getByRole("button", { name: "Done" }).click();
   await expect(assistant).toContainText("Prep for morning: Eat");
 
   await assistant.getByRole("button", { name: "Done" }).click();
-  await expect(assistant).toContainText("Dental Care.");
+  await expect(assistant).toContainText("Dental care");
 
   await assistant.getByRole("button", { name: "Done" }).click();
-  await expect(assistant).toContainText("Get in bed and turn lights out.");
+  await expect(assistant).toContainText("Toilet (Reading)");
+
+  await assistant.getByRole("button", { name: "Done" }).click();
+  await expect(assistant).toContainText(
+    "Lights out (Headspace, Audible, podcasts)",
+  );
 
   await assistant.getByRole("button", { name: "Done" }).click();
   await expect(assistant).toContainText("Lights out");

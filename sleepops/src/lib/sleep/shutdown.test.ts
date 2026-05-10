@@ -66,19 +66,20 @@ describe("shutdown assistant", () => {
     });
 
     expect(actions.map((action) => action.label)).toEqual([
-      "Close laptop and put it away.",
+      "Close laptop. Set the phone into Do Not Disturb mode.",
       "Do evening task: Shower",
       "Do evening task: Mobility",
       "Prep for morning: Pack bag",
       "Prep for morning: Choose clothes",
-      "Dental Care.",
-      "Get in bed and turn lights out.",
+      "Dental care",
+      "Toilet (Reading)",
+      "Lights out (Headspace, Audible, podcasts)",
     ]);
   });
 
-  it("does not add default dental care when an evening task already covers it", () => {
+  it("uses the clarified dental care label when a routine task already covers it", () => {
     const actions = buildShutdownActions({
-      eveningPreparationTasks: [
+      eveningTasks: [
         { stepId: "brush-teeth", label: "Brush Teeth" },
       ],
     });
@@ -89,9 +90,10 @@ describe("shutdown assistant", () => {
       ),
     ).toHaveLength(1);
     expect(actions.map((action) => action.label)).toEqual([
-      "Close laptop and put it away.",
-      "Prep for morning: Brush Teeth",
-      "Get in bed and turn lights out.",
+      "Close laptop. Set the phone into Do Not Disturb mode.",
+      "Dental care",
+      "Toilet (Reading)",
+      "Lights out (Headspace, Audible, podcasts)",
     ]);
   });
 
@@ -122,13 +124,13 @@ describe("shutdown assistant", () => {
       status: "active",
       action: { id: "close-laptop" },
       completedActions: 0,
-      totalActions: 4,
+      totalActions: 5,
     });
     expect(getShutdownProgress(actions, 2)).toMatchObject({
       status: "active",
       action: { id: "dental-care" },
       completedActions: 2,
-      totalActions: 4,
+      totalActions: 5,
     });
     expect(getShutdownProgress(actions, actions.length)).toEqual({
       status: "complete",
