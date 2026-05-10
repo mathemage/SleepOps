@@ -18,6 +18,17 @@ import {
   type ShutdownWindow,
 } from "@/lib/sleep";
 import {
+  getNextClockDelayMs,
+  resolveShutdownNotificationSupport,
+  type ShutdownNotificationSupport,
+} from "@/lib/pwa/notifications";
+import {
+  SLEEPOPS_STATE_STORAGE_KEY,
+  parseSleepOpsCoreState,
+  serializeSleepOpsCoreState,
+} from "@/lib/pwa/sleepops-state";
+import { readCachedString, writeCachedString } from "@/lib/pwa/storage";
+import {
   addStep,
   compressMorningRoutine,
   createDefaultMorningRoutineProfiler,
@@ -53,22 +64,50 @@ const STEP_CLASSIFICATION_OPTIONS: Array<{
   { value: "decision-setup", label: "Prep tonight" },
 ];
 
-let profilerMemorySnapshot: string | null = null;
-
 export function SleepCompiler() {
-  const [workStart, setWorkStart] = useState("09:00");
+  const [initialCoreState] = useState(() =>
+    parseSleepOpsCoreState(readCachedString(SLEEPOPS_STATE_STORAGE_KEY)),
+  );
+  const [workStart, setWorkStart] = useState(
+    initialCoreState.workStart,
+  );
   const [manualMorningRoutineMinutes, setManualMorningRoutineMinutes] =
-    useState(75);
+    useState(initialCoreState.manualMorningRoutineMinutes);
   const [useProfiledMorningRoutine, setUseProfiledMorningRoutine] =
-    useState(false);
-  const [commuteBufferMinutes, setCommuteBufferMinutes] = useState(30);
+    useState(initialCoreState.useProfiledMorningRoutine);
+  const [commuteBufferMinutes, setCommuteBufferMinutes] = useState(
+    initialCoreState.commuteBufferMinutes,
+  );
   const [shutdownPreviewMode, setShutdownPreviewMode] = useState(false);
   const [shutdownProgressState, setShutdownProgressState] =
     useState<ShutdownProgressState>({
-      sessionKey: "",
-      completedActions: 0,
+      ...initialCoreState.shutdownProgressState,
     });
+  const [shutdownRemindersEnabled, setShutdownRemindersEnabled] = useState(
+    initialCoreState.shutdownRemindersEnabled,
+  );
   const currentClock = useCurrentClock();
+
+  useEffect(() => {
+    writeCachedString(
+      SLEEPOPS_STATE_STORAGE_KEY,
+      serializeSleepOpsCoreState({
+        workStart,
+        manualMorningRoutineMinutes,
+        useProfiledMorningRoutine,
+        commuteBufferMinutes,
+        shutdownProgressState,
+        shutdownRemindersEnabled,
+      }),
+    );
+  }, [
+    commuteBufferMinutes,
+    manualMorningRoutineMinutes,
+    shutdownProgressState,
+    shutdownRemindersEnabled,
+    useProfiledMorningRoutine,
+    workStart,
+  ]);
 
   const { recordDateKey, retainedStartKey, setRecordDateKey, todayKey } =
     useProfilerDateKeys();
@@ -339,6 +378,12 @@ export function SleepCompiler() {
             >
               Preview shutdown mode
             </button>
+
+            <ShutdownReminderSetup
+              enabled={shutdownRemindersEnabled}
+              onEnabledChange={setShutdownRemindersEnabled}
+              shutdownStartTime={schedule.shutdownStartTime}
+            />
           </div>
 
           <div className="grid gap-3 text-sm text-[#52525b]">
@@ -800,6 +845,142 @@ function ShutdownAssistant({
   );
 }
 
+type ReminderSupportState =
+  | {
+      status: "checking";
+      message: string;
+      permission: null;
+    }
+  | {
+      status: "unsupported";
+      message: string;
+      permission: null;
+    }
+  | {
+      status: "supported";
+      message: string;
+      permission: NotificationPermission;
+    };
+
+function ShutdownReminderSetup({
+  enabled,
+  onEnabledChange,
+  shutdownStartTime,
+}: {
+  enabled: boolean;
+  onEnabledChange: (enabled: boolean) => void;
+  shutdownStartTime: string;
+}) {
+  const [support, setSupport] = useState<ReminderSupportState>({
+    status: "checking",
+    message: "Checking notification support.",
+    permission: null,
+  });
+
+  useEffect(() => {
+    let disposed = false;
+
+    const refreshSupport = async () => {
+      const nextSupport = await readShutdownReminderSupport();
+      if (!disposed) {
+        setSupport(nextSupport);
+      }
+    };
+
+    void refreshSupport();
+
+    return () => {
+      disposed = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (
+      enabled &&
+      (support.status === "unsupported" ||
+        (support.status === "supported" && support.permission !== "granted"))
+    ) {
+      onEnabledChange(false);
+    }
+  }, [enabled, onEnabledChange, support]);
+
+  useEffect(() => {
+    if (
+      !enabled ||
+      support.status !== "supported" ||
+      support.permission !== "granted"
+    ) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void showShutdownReminder(shutdownStartTime);
+    }, getNextClockDelayMs(shutdownStartTime, new Date()));
+
+    return () => window.clearTimeout(timeoutId);
+  }, [enabled, shutdownStartTime, support]);
+
+  const isEnabled =
+    enabled && support.status === "supported" && support.permission === "granted";
+  const isDenied = support.status === "supported" && support.permission === "denied";
+  const isUnavailable = support.status !== "supported" || isDenied;
+  const statusText = getShutdownReminderStatusText(
+    support,
+    isEnabled,
+    shutdownStartTime,
+  );
+
+  const toggleReminders = async () => {
+    if (isEnabled) {
+      onEnabledChange(false);
+      return;
+    }
+
+    if (support.status !== "supported" || isDenied) {
+      return;
+    }
+
+    let permission = window.Notification.permission;
+    if (permission === "default") {
+      permission = await window.Notification.requestPermission();
+    }
+
+    setSupport({
+      status: "supported",
+      message: support.message,
+      permission,
+    });
+    onEnabledChange(permission === "granted");
+  };
+
+  return (
+    <section
+      aria-labelledby="shutdown-reminders-heading"
+      className="border border-[#d8dfda] bg-[#fbfcfb] p-4"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2
+            className="text-sm font-semibold text-[#18181b]"
+            id="shutdown-reminders-heading"
+          >
+            Shutdown reminders
+          </h2>
+          <p className="mt-1 text-sm text-[#52525b]">{statusText}</p>
+        </div>
+        <button
+          className="h-11 border border-[#166534] bg-white px-3 text-sm font-semibold text-[#166534] hover:bg-[#f0fdf4] disabled:cursor-not-allowed disabled:border-[#cfd8d1] disabled:text-[#71717a] disabled:hover:bg-white"
+          disabled={isUnavailable}
+          onClick={toggleReminders}
+          type="button"
+        >
+          {isEnabled ? "Turn off reminders" : "Enable shutdown reminders"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function CompressionBlock({
   emptyText,
   listLabel,
@@ -963,6 +1144,103 @@ function TopLeaks({
   );
 }
 
+async function readShutdownReminderSupport(): Promise<ReminderSupportState> {
+  if (typeof window === "undefined") {
+    return {
+      status: "unsupported",
+      message: "Notifications are not supported in this browser.",
+      permission: null,
+    };
+  }
+
+  const hasNotification = typeof window.Notification !== "undefined";
+  const hasServiceWorker =
+    "serviceWorker" in navigator &&
+    typeof navigator.serviceWorker?.ready?.then === "function";
+  const registration = hasServiceWorker
+    ? await waitForServiceWorkerRegistration()
+    : null;
+  const support: ShutdownNotificationSupport =
+    resolveShutdownNotificationSupport({
+      isSecureContext: window.isSecureContext,
+      hasNotification,
+      hasServiceWorker,
+      hasShowNotification: typeof registration?.showNotification === "function",
+    });
+
+  if (!support.supported || !hasNotification) {
+    return {
+      status: "unsupported",
+      message: support.message,
+      permission: null,
+    };
+  }
+
+  return {
+    status: "supported",
+    message: support.message,
+    permission: window.Notification.permission,
+  };
+}
+
+function getShutdownReminderStatusText(
+  support: ReminderSupportState,
+  isEnabled: boolean,
+  shutdownStartTime: string,
+): string {
+  if (support.status === "checking") {
+    return support.message;
+  }
+
+  if (support.status === "unsupported") {
+    return support.message;
+  }
+
+  if (support.permission === "denied") {
+    return "Notifications are blocked in this browser.";
+  }
+
+  if (isEnabled) {
+    return `Reminder set for ${shutdownStartTime} while SleepOps is open.`;
+  }
+
+  if (support.permission === "granted") {
+    return "Notifications are allowed. Shutdown reminders are off.";
+  }
+
+  return "Enable reminders to be notified at shutdown start while SleepOps is open.";
+}
+
+async function waitForServiceWorkerRegistration() {
+  return Promise.race<ServiceWorkerRegistration | null>([
+    navigator.serviceWorker.ready,
+    new Promise((resolve) => {
+      window.setTimeout(() => resolve(null), 1500);
+    }),
+  ]);
+}
+
+async function showShutdownReminder(shutdownStartTime: string): Promise<void> {
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    if (typeof registration.showNotification !== "function") {
+      return;
+    }
+
+    await registration.showNotification("SleepOps shutdown", {
+      body: `Start shutdown by ${shutdownStartTime}.`,
+      badge: "/badge-96.png",
+      data: {
+        url: "/",
+      },
+      icon: "/icon-192.png",
+      tag: "sleepops-shutdown",
+    });
+  } catch {
+    // Notification delivery should not interrupt the planning surface.
+  }
+}
+
 function makeStepId(): string {
   if ("crypto" in globalThis && typeof globalThis.crypto.randomUUID === "function") {
     return globalThis.crypto.randomUUID();
@@ -976,13 +1254,20 @@ function useCurrentClock(): ClockSnapshot | null {
 
   useEffect(() => {
     const updateClock = () => setCurrentClock(readCurrentClock());
-    const initTimeoutId = setTimeout(updateClock, 0);
+    let disposed = false;
+
+    queueMicrotask(() => {
+      if (!disposed) {
+        updateClock();
+      }
+    });
+
     const intervalId = setInterval(() => {
       setCurrentClock(readCurrentClock());
     }, 30_000);
 
     return () => {
-      clearTimeout(initTimeoutId);
+      disposed = true;
       clearInterval(intervalId);
     };
   }, []);
@@ -1138,22 +1423,11 @@ function useMorningRoutineProfiler(todayKey: string | null) {
 }
 
 function readProfilerSnapshot(): string | null {
-  try {
-    return globalThis.localStorage?.getItem(PROFILER_STORAGE_KEY) ??
-      profilerMemorySnapshot;
-  } catch {
-    return profilerMemorySnapshot;
-  }
+  return readCachedString(PROFILER_STORAGE_KEY);
 }
 
 function writeProfilerSnapshot(raw: string) {
-  profilerMemorySnapshot = raw;
-
-  try {
-    globalThis.localStorage?.setItem(PROFILER_STORAGE_KEY, raw);
-  } catch {
-    // Keep the in-memory snapshot so the current session remains usable.
-  }
+  writeCachedString(PROFILER_STORAGE_KEY, raw);
 
   try {
     globalThis.dispatchEvent(new Event(PROFILER_CHANGE_EVENT));
