@@ -1,8 +1,5 @@
 import { formatClockTime, parseClockTime } from "./schedule";
 
-export const MIN_SHUTDOWN_MINUTES = 45;
-export const MAX_SHUTDOWN_MINUTES = 75;
-
 export type ShutdownRoutineTask = {
   stepId: string;
   label: string;
@@ -42,8 +39,6 @@ export type ShutdownProgress =
 export function buildShutdownWindow(
   input: ShutdownWindowInput,
 ): ShutdownWindow {
-  assertShutdownMinutes(input.shutdownMinutes);
-
   const lightsOutMinutes = parseClockTime(input.lightsOutTime);
 
   return {
@@ -136,18 +131,6 @@ export function getShutdownProgress(
     completedActions: safeCompletedActions,
     totalActions,
   };
-}
-
-function assertShutdownMinutes(shutdownMinutes: number): void {
-  if (
-    !Number.isInteger(shutdownMinutes) ||
-    shutdownMinutes < MIN_SHUTDOWN_MINUTES ||
-    shutdownMinutes > MAX_SHUTDOWN_MINUTES
-  ) {
-    throw new RangeError(
-      `shutdownMinutes must be between ${MIN_SHUTDOWN_MINUTES} and ${MAX_SHUTDOWN_MINUTES}.`,
-    );
-  }
 }
 
 function isDentalCareActionLabel(label: string): boolean {

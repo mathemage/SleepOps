@@ -27,22 +27,6 @@ describe("shutdown assistant", () => {
     ).toBe("22:00");
   });
 
-  it("rejects shutdown durations outside the MVP range", () => {
-    expect(() =>
-      buildShutdownWindow({
-        lightsOutTime: "22:15",
-        shutdownMinutes: 44,
-      }),
-    ).toThrow(RangeError);
-
-    expect(() =>
-      buildShutdownWindow({
-        lightsOutTime: "22:15",
-        shutdownMinutes: 76,
-      }),
-    ).toThrow(RangeError);
-  });
-
   it("detects active shutdown windows before lights-out", () => {
     const window = buildShutdownWindow({
       lightsOutTime: "22:15",

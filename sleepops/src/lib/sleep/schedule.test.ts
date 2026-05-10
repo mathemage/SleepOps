@@ -66,4 +66,33 @@ describe("sleep scheduling", () => {
       }),
     ).toThrow(RangeError);
   });
+
+  it("owns shutdown duration validation for the 45-75 minute window", () => {
+    expect(() =>
+      buildSleepSchedule({
+        workStart: "09:00",
+        morningRoutineMinutes: 75,
+        commuteBufferMinutes: 30,
+        shutdownMinutes: 44,
+      }),
+    ).toThrow(RangeError);
+
+    expect(() =>
+      buildSleepSchedule({
+        workStart: "09:00",
+        morningRoutineMinutes: 75,
+        commuteBufferMinutes: 30,
+        shutdownMinutes: 76,
+      }),
+    ).toThrow(RangeError);
+
+    expect(
+      buildSleepSchedule({
+        workStart: "09:00",
+        morningRoutineMinutes: 75,
+        commuteBufferMinutes: 30,
+        shutdownMinutes: 75,
+      }).shutdownStartTime,
+    ).toBe("21:00");
+  });
 });

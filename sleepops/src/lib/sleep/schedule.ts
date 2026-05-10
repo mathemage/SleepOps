@@ -1,5 +1,7 @@
 export const DAY_MINUTES = 24 * 60;
 export const REQUIRED_SLEEP_MINUTES = 9 * 60;
+export const MIN_SHUTDOWN_MINUTES = 45;
+export const MAX_SHUTDOWN_MINUTES = 75;
 export const DEFAULT_SHUTDOWN_MINUTES = 45;
 
 const CLOCK_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -35,7 +37,7 @@ export function buildSleepSchedule(input: SleepScheduleInput): SleepSchedule {
   assertWholeMinutes(requiredSleepMinutes, "requiredSleepMinutes");
   assertWholeMinutes(input.morningRoutineMinutes, "morningRoutineMinutes");
   assertWholeMinutes(input.commuteBufferMinutes, "commuteBufferMinutes");
-  assertWholeMinutes(shutdownMinutes, "shutdownMinutes");
+  assertShutdownMinutes(shutdownMinutes);
 
   const morningBlockMinutes =
     input.morningRoutineMinutes + input.commuteBufferMinutes;
@@ -105,6 +107,19 @@ export function formatDuration(totalMinutes: number): string {
 function assertWholeMinutes(value: number, name: string): void {
   if (!Number.isFinite(value) || value < 0 || !Number.isInteger(value)) {
     throw new RangeError(`${name} must be a whole number of minutes.`);
+  }
+}
+
+function assertShutdownMinutes(shutdownMinutes: number): void {
+  assertWholeMinutes(shutdownMinutes, "shutdownMinutes");
+
+  if (
+    shutdownMinutes < MIN_SHUTDOWN_MINUTES ||
+    shutdownMinutes > MAX_SHUTDOWN_MINUTES
+  ) {
+    throw new RangeError(
+      `shutdownMinutes must be between ${MIN_SHUTDOWN_MINUTES} and ${MAX_SHUTDOWN_MINUTES}.`,
+    );
   }
 }
 
