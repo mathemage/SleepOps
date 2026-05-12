@@ -116,11 +116,18 @@ async function cacheFirst(request) {
     return cached;
   }
 
-  const response = await fetch(request);
-  if (response.ok) {
-    await cache.put(request, response.clone());
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      await cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    return new Response("SleepOps asset unavailable offline.", {
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+      status: 503,
+    });
   }
-  return response;
 }
 
 async function cacheUrls(urls) {

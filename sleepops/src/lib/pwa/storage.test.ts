@@ -44,6 +44,37 @@ describe("local string cache", () => {
     expect(removeCachedString("sleepops.test", storage)).toBe(true);
     expect(readCachedString("sleepops.test", storage)).toBeNull();
   });
+
+  it("treats a browser storage miss as authoritative when storage is available", () => {
+    const storage = createStorage();
+    const blockedStorage: StringStorage = {
+      getItem() {
+        throw new DOMException("Storage blocked", "SecurityError");
+      },
+      setItem() {
+        throw new DOMException("Storage blocked", "SecurityError");
+      },
+    };
+
+    writeCachedString("sleepops.test", "stale", blockedStorage);
+
+    expect(readCachedString("sleepops.test", storage)).toBeNull();
+    expect(readCachedString("sleepops.test", blockedStorage)).toBeNull();
+  });
+
+  it("reports false when no backing storage removal occurs", () => {
+    const storageWithoutRemoval: StringStorage = {
+      getItem: () => null,
+      setItem: () => {},
+    };
+
+    writeCachedString("sleepops.test", "memory", null);
+
+    expect(removeCachedString("sleepops.test", storageWithoutRemoval)).toBe(
+      false,
+    );
+    expect(readCachedString("sleepops.test", null)).toBeNull();
+  });
 });
 
 function createStorage(): StringStorage {

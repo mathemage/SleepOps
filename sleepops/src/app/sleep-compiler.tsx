@@ -913,11 +913,27 @@ function ShutdownReminderSetup({
       return;
     }
 
-    const timeoutId = window.setTimeout(() => {
-      void showShutdownReminder(shutdownStartTime);
-    }, getNextClockDelayMs(shutdownStartTime, new Date()));
+    let timeoutId: number | null = null;
+    let disposed = false;
+    const scheduleNextReminder = () => {
+      const delay = getNextClockDelayMs(shutdownStartTime, new Date());
+      timeoutId = window.setTimeout(() => {
+        void showShutdownReminder(shutdownStartTime).finally(() => {
+          if (!disposed) {
+            scheduleNextReminder();
+          }
+        });
+      }, Math.max(1000, delay));
+    };
 
-    return () => window.clearTimeout(timeoutId);
+    scheduleNextReminder();
+
+    return () => {
+      disposed = true;
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
   }, [enabled, shutdownStartTime, support]);
 
   const isEnabled =
