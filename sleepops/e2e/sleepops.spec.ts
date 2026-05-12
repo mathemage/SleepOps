@@ -137,6 +137,44 @@ test("disables shutdown reminders when notification APIs are unavailable", async
   ).toBeDisabled();
 });
 
+test("keeps shutdown reminders pending while the service worker is still registering", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    class MockNotification {
+      static permission = "default";
+    }
+
+    Object.defineProperty(window, "Notification", {
+      configurable: true,
+      value: MockNotification,
+    });
+    Object.defineProperty(window, "isSecureContext", {
+      configurable: true,
+      value: true,
+    });
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: {
+        addEventListener() {},
+        controller: null,
+        getRegistration: () => Promise.resolve(undefined),
+        ready: new Promise(() => {}),
+        register: () => Promise.reject(new Error("blocked")),
+        removeEventListener() {},
+      },
+    });
+  });
+
+  await page.goto("/");
+
+  const reminders = page.getByRole("region", { name: "Shutdown reminders" });
+  await expect(reminders).toContainText("Finishing notification setup.");
+  await expect(
+    reminders.getByRole("button", { name: "Enable shutdown reminders" }),
+  ).toBeDisabled();
+});
+
 test("requests notification permission only from the reminder enable action", async ({
   page,
 }) => {
@@ -188,6 +226,7 @@ test("requests notification permission only from the reminder enable action", as
       value: {
         addEventListener() {},
         controller: { postMessage() {} },
+        getRegistration: () => Promise.resolve(registration),
         ready: Promise.resolve(registration),
         register: () => Promise.resolve(registration),
         removeEventListener() {},

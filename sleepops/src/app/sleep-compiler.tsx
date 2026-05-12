@@ -55,6 +55,8 @@ const MAX_BUFFER_MINUTES = 240;
 const PROFILER_RETENTION_DAYS = 7;
 const PROFILER_STORAGE_KEY = "sleepops.morningRoutineProfiler.v1";
 const PROFILER_CHANGE_EVENT = "sleepops.morningRoutineProfiler.change";
+const SERVICE_WORKER_SUPPORT_FALLBACK_MS = 5_000;
+const SERVICE_WORKER_READY_CHECK_MS = 1_000;
 const STEP_CLASSIFICATION_OPTIONS: Array<{
   value: RoutineStepClassification;
   label: string;
@@ -880,8 +882,10 @@ function ShutdownReminderSetup({
   useEffect(() => {
     let disposed = false;
 
-    const refreshSupport = async () => {
-      const nextSupport = await readShutdownReminderSupport();
+    const refreshSupport = async (allowPendingRegistration = true) => {
+      const nextSupport = await readShutdownReminderSupport({
+        allowPendingRegistration,
+      });
       if (!disposed) {
         setSupport(nextSupport);
       }
@@ -894,6 +898,10 @@ function ShutdownReminderSetup({
     void refreshSupport();
 
     const serviceWorker = navigator.serviceWorker;
+    const fallbackTimeoutId = window.setTimeout(() => {
+      void refreshSupport(false);
+    }, SERVICE_WORKER_SUPPORT_FALLBACK_MS);
+
     if (
       typeof serviceWorker?.addEventListener === "function" &&
       typeof serviceWorker.ready?.then === "function"
@@ -902,11 +910,12 @@ function ShutdownReminderSetup({
         "controllerchange",
         handleControllerChange,
       );
-      void serviceWorker.ready.then(refreshSupport).catch(() => {});
+      void serviceWorker.ready.then(() => refreshSupport()).catch(() => {});
     }
 
     return () => {
       disposed = true;
+      window.clearTimeout(fallbackTimeoutId);
       if (typeof serviceWorker?.removeEventListener === "function") {
         serviceWorker.removeEventListener(
           "controllerchange",
@@ -1182,7 +1191,11 @@ function TopLeaks({
   );
 }
 
-async function readShutdownReminderSupport(): Promise<ReminderSupportState> {
+async function readShutdownReminderSupport({
+  allowPendingRegistration = true,
+}: {
+  allowPendingRegistration?: boolean;
+} = {}): Promise<ReminderSupportState> {
   if (typeof window === "undefined") {
     return {
       status: "unsupported",
@@ -1192,12 +1205,44 @@ async function readShutdownReminderSupport(): Promise<ReminderSupportState> {
   }
 
   const hasNotification = typeof window.Notification !== "undefined";
+  const serviceWorker =
+    typeof navigator !== "undefined" ? navigator.serviceWorker : undefined;
   const hasServiceWorker =
-    "serviceWorker" in navigator &&
-    typeof navigator.serviceWorker?.ready?.then === "function";
-  const registration = hasServiceWorker
-    ? await waitForServiceWorkerRegistration()
-    : null;
+    typeof serviceWorker?.ready?.then === "function";
+
+  if (!window.isSecureContext || !hasNotification || !hasServiceWorker) {
+    const support: ShutdownNotificationSupport =
+      resolveShutdownNotificationSupport({
+        isSecureContext: window.isSecureContext,
+        hasNotification,
+        hasServiceWorker,
+        hasShowNotification: false,
+      });
+
+    return {
+      status: "unsupported",
+      message: support.message,
+      permission: null,
+    };
+  }
+
+  const registration = await readServiceWorkerRegistration(serviceWorker);
+  if (!registration) {
+    if (allowPendingRegistration) {
+      return {
+        status: "checking",
+        message: "Finishing notification setup.",
+        permission: null,
+      };
+    }
+
+    return {
+      status: "unsupported",
+      message: "This browser cannot show SleepOps reminders from the app shell.",
+      permission: null,
+    };
+  }
+
   const support: ShutdownNotificationSupport =
     resolveShutdownNotificationSupport({
       isSecureContext: window.isSecureContext,
@@ -1249,8 +1294,28 @@ function getShutdownReminderStatusText(
   return "Enable reminders to be notified at shutdown start while SleepOps is open.";
 }
 
-async function waitForServiceWorkerRegistration() {
-  return navigator.serviceWorker.ready;
+async function readServiceWorkerRegistration(
+  serviceWorker: ServiceWorkerContainer,
+): Promise<ServiceWorkerRegistration | null> {
+  try {
+    const registration =
+      typeof serviceWorker.getRegistration === "function"
+        ? await serviceWorker.getRegistration()
+        : null;
+
+    if (registration) {
+      return registration;
+    }
+
+    return await Promise.race<ServiceWorkerRegistration | null>([
+      serviceWorker.ready,
+      new Promise((resolve) => {
+        window.setTimeout(() => resolve(null), SERVICE_WORKER_READY_CHECK_MS);
+      }),
+    ]);
+  } catch {
+    return null;
+  }
 }
 
 async function showShutdownReminder(shutdownStartTime: string): Promise<void> {

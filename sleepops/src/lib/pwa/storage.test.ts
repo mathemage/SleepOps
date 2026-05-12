@@ -36,6 +36,11 @@ describe("local string cache", () => {
     expect(readCachedString("sleepops.test", blockedStorage)).toBe("memory");
   });
 
+  it("reports false while writing to memory when browser storage is unavailable", () => {
+    expect(writeCachedString("sleepops.test", "memory", null)).toBe(false);
+    expect(readCachedString("sleepops.test", null)).toBe("memory");
+  });
+
   it("removes values from the memory fallback and browser storage", () => {
     const storage = createStorage();
 

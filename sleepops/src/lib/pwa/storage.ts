@@ -35,8 +35,12 @@ export function writeCachedString(
 ): boolean {
   memoryStorage.set(key, value);
 
+  if (!storage) {
+    return false;
+  }
+
   try {
-    storage?.setItem(key, value);
+    storage.setItem(key, value);
     return true;
   } catch {
     return false;
