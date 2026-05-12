@@ -1353,8 +1353,14 @@ function useCurrentClock(): ClockSnapshot | null {
   useEffect(() => {
     const updateClock = () => setCurrentClock(readCurrentClock());
     let disposed = false;
+    const scheduleInitialClockUpdate =
+      typeof globalThis.queueMicrotask === "function"
+        ? globalThis.queueMicrotask
+        : (callback: VoidFunction) => {
+            void Promise.resolve().then(callback);
+          };
 
-    queueMicrotask(() => {
+    scheduleInitialClockUpdate(() => {
       if (!disposed) {
         updateClock();
       }
