@@ -651,15 +651,7 @@ async function prepareOfflineAppShell(page: Page) {
   ).toBeVisible();
 
   await page.evaluate(async () => {
-    const urls = new Set<string>([
-      "/",
-      "/manifest.webmanifest",
-      "/favicon.ico",
-      "/icon-192.png",
-      "/icon-512.png",
-      "/apple-touch-icon.png",
-      "/badge-96.png",
-    ]);
+    const urls = new Set<string>();
 
     for (const entry of performance.getEntriesByType("resource")) {
       const url = new URL((entry as PerformanceResourceTiming).name);
@@ -671,7 +663,18 @@ async function prepareOfflineAppShell(page: Page) {
       }
     }
 
-    const cache = await caches.open("sleepops-app-shell-v1");
+    const registration = await navigator.serviceWorker.ready;
+    const worker = registration.active ?? navigator.serviceWorker.controller;
+    worker?.postMessage({ urls: Array.from(urls) });
+
+    const cacheName = (await caches.keys()).find((key) =>
+      key.startsWith("sleepops-app-shell-"),
+    );
+    if (!cacheName) {
+      throw new Error("SleepOps app shell cache was not created.");
+    }
+
+    const cache = await caches.open(cacheName);
     await Promise.all(
       Array.from(urls).map(async (url) => {
         try {

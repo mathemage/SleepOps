@@ -1,5 +1,5 @@
 const CACHE_NAME = "sleepops-app-shell-v1";
-const CACHE_MESSAGE_TYPE = "SLEEPOPS_CACHE_APP_SHELL";
+const APP_SHELL_CACHE_PREFIX = "sleepops-app-shell-";
 const APP_SHELL_URLS = [
   "/",
   "/manifest.webmanifest",
@@ -22,7 +22,11 @@ self.addEventListener("activate", (event) => {
       .then((cacheNames) =>
         Promise.all(
           cacheNames
-            .filter((cacheName) => cacheName !== CACHE_NAME)
+            .filter(
+              (cacheName) =>
+                cacheName.startsWith(APP_SHELL_CACHE_PREFIX) &&
+                cacheName !== CACHE_NAME,
+            )
             .map((cacheName) => caches.delete(cacheName)),
         ),
       )
@@ -31,11 +35,11 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("message", (event) => {
-  if (event.data?.type !== CACHE_MESSAGE_TYPE) {
+  if (!Array.isArray(event.data?.urls)) {
     return;
   }
 
-  event.waitUntil(cacheUrls(event.data.urls ?? APP_SHELL_URLS));
+  event.waitUntil(cacheUrls(event.data.urls));
 });
 
 self.addEventListener("fetch", (event) => {

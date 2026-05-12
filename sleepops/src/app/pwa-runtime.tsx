@@ -2,17 +2,6 @@
 
 import { useEffect } from "react";
 
-const CACHE_MESSAGE_TYPE = "SLEEPOPS_CACHE_APP_SHELL";
-const APP_SHELL_URLS = [
-  "/",
-  "/manifest.webmanifest",
-  "/favicon.ico",
-  "/icon-192.png",
-  "/icon-512.png",
-  "/apple-touch-icon.png",
-  "/badge-96.png",
-];
-
 export function PwaRuntime() {
   useEffect(() => {
     if (
@@ -73,15 +62,12 @@ function cacheAppShell(registration: ServiceWorkerRegistration) {
     navigator.serviceWorker.controller;
 
   worker?.postMessage({
-    type: CACHE_MESSAGE_TYPE,
-    urls: collectAppShellUrls(),
+    urls: collectStaticAssetUrls(),
   });
 }
 
-function collectAppShellUrls(): string[] {
-  const urls = new Set<string>(
-    APP_SHELL_URLS.map((url) => new URL(url, window.location.origin).href),
-  );
+function collectStaticAssetUrls(): string[] {
+  const urls = new Set<string>();
 
   for (const entry of performance.getEntriesByType("resource")) {
     const resource = entry as PerformanceResourceTiming;

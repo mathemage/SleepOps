@@ -887,10 +887,32 @@ function ShutdownReminderSetup({
       }
     };
 
+    const handleControllerChange = () => {
+      void refreshSupport();
+    };
+
     void refreshSupport();
+
+    const serviceWorker = navigator.serviceWorker;
+    if (
+      typeof serviceWorker?.addEventListener === "function" &&
+      typeof serviceWorker.ready?.then === "function"
+    ) {
+      serviceWorker.addEventListener(
+        "controllerchange",
+        handleControllerChange,
+      );
+      void serviceWorker.ready.then(refreshSupport).catch(() => {});
+    }
 
     return () => {
       disposed = true;
+      if (typeof serviceWorker?.removeEventListener === "function") {
+        serviceWorker.removeEventListener(
+          "controllerchange",
+          handleControllerChange,
+        );
+      }
     };
   }, []);
 
@@ -1228,12 +1250,7 @@ function getShutdownReminderStatusText(
 }
 
 async function waitForServiceWorkerRegistration() {
-  return Promise.race<ServiceWorkerRegistration | null>([
-    navigator.serviceWorker.ready,
-    new Promise((resolve) => {
-      window.setTimeout(() => resolve(null), 1500);
-    }),
-  ]);
+  return navigator.serviceWorker.ready;
 }
 
 async function showShutdownReminder(shutdownStartTime: string): Promise<void> {
