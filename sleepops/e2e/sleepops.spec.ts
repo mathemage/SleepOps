@@ -1,4 +1,4 @@
-import { expect, test } from "playwright/test";
+import { expect, test, type Page } from "playwright/test";
 
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-05-10T12:00:00Z"));
@@ -20,6 +20,249 @@ test("compiles the default 9-5 sleep contract", async ({ page }) => {
   await expect(page.getByRole("definition").filter({ hasText: "22:15" })).toBeVisible();
   await expect(page.getByText("Free time left today")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Tonight timeline" })).toBeVisible();
+});
+
+test("exposes installable PWA manifest metadata and icons", async ({
+  request,
+}) => {
+  const manifestResponse = await request.get("/manifest.webmanifest");
+  expect(manifestResponse.ok()).toBe(true);
+
+  const manifest = await manifestResponse.json();
+  expect(manifest).toMatchObject({
+    name: "SleepOps",
+    short_name: "SleepOps",
+    start_url: "/",
+    scope: "/",
+    display: "standalone",
+  });
+  expect(manifest.icons).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        src: "/icon-192.png",
+        sizes: "192x192",
+        type: "image/png",
+      }),
+      expect.objectContaining({
+        src: "/icon-512.png",
+        sizes: "512x512",
+        type: "image/png",
+      }),
+    ]),
+  );
+
+  const iconResponse = await request.get("/apple-touch-icon.png");
+  expect(iconResponse.ok()).toBe(true);
+  expect(iconResponse.headers()["content-type"]).toContain("image/png");
+});
+
+test("persists the sleep contract and compressed routine inputs across reloads", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await page.getByLabel("Work start time").fill("10:00");
+  await page
+    .getByRole("spinbutton", { name: "Morning routine duration" })
+    .fill("60");
+  await page
+    .getByRole("spinbutton", { name: "Commute / buffer duration" })
+    .fill("45");
+  await page.getByLabel("Classify shower").selectOption("movable-evening");
+
+  await page.reload();
+
+  await expect(page.getByLabel("Work start time")).toHaveValue("10:00");
+  await expect(
+    page.getByRole("spinbutton", { name: "Morning routine duration" }),
+  ).toHaveValue("60");
+  await expect(
+    page.getByRole("spinbutton", { name: "Commute / buffer duration" }),
+  ).toHaveValue("45");
+  await expect(page.getByLabel("Classify shower")).toHaveValue(
+    "movable-evening",
+  );
+  await expect(page.getByText("Start shutdown by 22:15")).toBeVisible();
+});
+
+test("serves the main app shell after simulated offline cache conditions", async ({
+  context,
+  page,
+}) => {
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "Tonight's shutdown deadline" }),
+  ).toBeVisible();
+
+  await prepareOfflineAppShell(page);
+
+  try {
+    await context.setOffline(true);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.clock.runFor(1000);
+
+    await expect(
+      page.getByRole("heading", { name: "Tonight's shutdown deadline" }),
+    ).toBeVisible();
+    await expect(page.getByText("Start shutdown by 21:30")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Routine compressor" }))
+      .toBeVisible();
+  } finally {
+    await context.setOffline(false);
+  }
+});
+
+test("disables shutdown reminders when notification APIs are unavailable", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "Notification", {
+      configurable: true,
+      value: undefined,
+    });
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  await page.goto("/");
+
+  const reminders = page.getByRole("region", { name: "Shutdown reminders" });
+  await expect(reminders).toContainText(
+    "Notifications are not supported in this browser.",
+  );
+  await expect(
+    reminders.getByRole("button", { name: "Enable shutdown reminders" }),
+  ).toBeDisabled();
+});
+
+test("keeps shutdown reminders pending while the service worker is still registering", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    class MockNotification {
+      static permission = "default";
+    }
+
+    Object.defineProperty(window, "Notification", {
+      configurable: true,
+      value: MockNotification,
+    });
+    Object.defineProperty(window, "isSecureContext", {
+      configurable: true,
+      value: true,
+    });
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: {
+        addEventListener() {},
+        controller: null,
+        getRegistration: () => Promise.resolve(undefined),
+        ready: new Promise(() => {}),
+        register: () => Promise.reject(new Error("blocked")),
+        removeEventListener() {},
+      },
+    });
+  });
+
+  await page.goto("/");
+
+  const reminders = page.getByRole("region", { name: "Shutdown reminders" });
+  await expect(reminders).toContainText("Finishing notification setup.");
+  await expect(
+    reminders.getByRole("button", { name: "Enable shutdown reminders" }),
+  ).toBeDisabled();
+});
+
+test("requests notification permission only from the reminder enable action", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const readPermission = () => {
+      try {
+        return window.localStorage.getItem("sleepops.test.permission") ??
+          "default";
+      } catch {
+        return "default";
+      }
+    };
+    let permission = readPermission();
+    const registration = {
+      active: { postMessage() {} },
+      installing: null,
+      showNotification() {
+        return Promise.resolve();
+      },
+      waiting: null,
+    };
+
+    class MockNotification {
+      static get permission() {
+        return permission;
+      }
+
+      static requestPermission() {
+        window.__sleepopsPermissionRequests =
+          (window.__sleepopsPermissionRequests ?? 0) + 1;
+        permission = "granted";
+        try {
+          window.localStorage.setItem("sleepops.test.permission", permission);
+        } catch {}
+        return Promise.resolve(permission);
+      }
+    }
+
+    Object.defineProperty(window, "Notification", {
+      configurable: true,
+      value: MockNotification,
+    });
+    Object.defineProperty(window, "isSecureContext", {
+      configurable: true,
+      value: true,
+    });
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: {
+        addEventListener() {},
+        controller: { postMessage() {} },
+        getRegistration: () => Promise.resolve(registration),
+        ready: Promise.resolve(registration),
+        register: () => Promise.resolve(registration),
+        removeEventListener() {},
+      },
+    });
+    window.__sleepopsPermissionRequests = 0;
+  });
+
+  await page.goto("/");
+
+  const reminders = page.getByRole("region", { name: "Shutdown reminders" });
+  await expect(reminders).toContainText(
+    "Enable reminders to be notified at shutdown start while SleepOps is open.",
+  );
+  await expect
+    .poll(() => page.evaluate(() => window.__sleepopsPermissionRequests))
+    .toBe(0);
+
+  await reminders
+    .getByRole("button", { name: "Enable shutdown reminders" })
+    .click();
+
+  await expect
+    .poll(() => page.evaluate(() => window.__sleepopsPermissionRequests))
+    .toBe(1);
+  await expect(reminders).toContainText(
+    "Reminder set for 21:30 while SleepOps is open.",
+  );
+  await expect(
+    reminders.getByRole("button", { name: "Turn off reminders" }),
+  ).toBeVisible();
+
+  await page.reload();
+  await expect(reminders).toContainText(
+    "Reminder set for 21:30 while SleepOps is open.",
+  );
 });
 
 test("recalculates for a 10-6 day and warns on impossible input", async ({
@@ -429,3 +672,60 @@ test("keeps the profiler usable when browser storage is unavailable", async ({
     "Wake (boot up)",
   );
 });
+
+async function prepareOfflineAppShell(page: Page) {
+  await page.evaluate(async () => {
+    if (!("serviceWorker" in navigator)) {
+      throw new Error("Service workers are unavailable.");
+    }
+
+    await navigator.serviceWorker.ready;
+  });
+
+  await page.reload();
+  await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
+  await page.clock.runFor(1000);
+  await expect(
+    page.getByRole("heading", { name: "Tonight's shutdown deadline" }),
+  ).toBeVisible();
+
+  await page.evaluate(async () => {
+    const urls = new Set<string>();
+
+    for (const entry of performance.getEntriesByType("resource")) {
+      const url = new URL((entry as PerformanceResourceTiming).name);
+      if (
+        url.origin === window.location.origin &&
+        url.pathname.startsWith("/_next/static/")
+      ) {
+        urls.add(url.href);
+      }
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+    const worker = registration.active ?? navigator.serviceWorker.controller;
+    worker?.postMessage({ urls: Array.from(urls) });
+
+    const cacheName = (await caches.keys()).find((key) =>
+      key.startsWith("sleepops-app-shell-"),
+    );
+    if (!cacheName) {
+      throw new Error("SleepOps app shell cache was not created.");
+    }
+
+    const cache = await caches.open(cacheName);
+    await Promise.all(
+      Array.from(urls).map(async (url) => {
+        try {
+          await cache.add(url);
+        } catch {}
+      }),
+    );
+  });
+}
+
+declare global {
+  interface Window {
+    __sleepopsPermissionRequests?: number;
+  }
+}
