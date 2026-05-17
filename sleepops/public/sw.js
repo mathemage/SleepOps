@@ -1,5 +1,6 @@
 const CACHE_NAME = "sleepops-app-shell-v1";
 const APP_SHELL_CACHE_PREFIX = "sleepops-app-shell-";
+const MAX_MESSAGE_CACHE_URLS = 80;
 const APP_SHELL_URLS = [
   "/",
   "/manifest.webmanifest",
@@ -39,7 +40,7 @@ self.addEventListener("message", (event) => {
     return;
   }
 
-  event.waitUntil(cacheUrls(event.data.urls));
+  event.waitUntil(cacheUrls(event.data.urls.slice(0, MAX_MESSAGE_CACHE_URLS)));
 });
 
 self.addEventListener("fetch", (event) => {
@@ -62,22 +63,6 @@ self.addEventListener("fetch", (event) => {
   if (isCacheableAsset(url.pathname)) {
     event.respondWith(cacheFirst(request));
   }
-});
-
-self.addEventListener("push", (event) => {
-  const payload = readPushPayload(event);
-
-  event.waitUntil(
-    self.registration.showNotification(payload.title, {
-      body: payload.body,
-      icon: payload.icon || "/icon-192.png",
-      badge: payload.badge || "/badge-96.png",
-      tag: payload.tag || "sleepops-shutdown",
-      data: {
-        url: payload.url || "/",
-      },
-    }),
-  );
 });
 
 self.addEventListener("notificationclick", (event) => {
@@ -140,7 +125,7 @@ async function cacheUrls(urls) {
 
   await Promise.all(
     uniqueUrls.map(async (url) => {
-      const request = toSameOriginRequest(url);
+      const request = toCacheableRequest(url);
       if (!request) {
         return;
       }
@@ -157,10 +142,17 @@ async function cacheUrls(urls) {
   );
 }
 
-function toSameOriginRequest(url) {
+function toCacheableRequest(url) {
+  if (typeof url !== "string") {
+    return null;
+  }
+
   try {
     const parsed = new URL(url, self.location.origin);
-    if (parsed.origin !== self.location.origin) {
+    if (
+      parsed.origin !== self.location.origin ||
+      !isCacheableAsset(parsed.pathname)
+    ) {
       return null;
     }
 
@@ -186,24 +178,6 @@ function isCacheableAsset(pathname) {
     pathname === "/apple-touch-icon.png" ||
     pathname === "/badge-96.png"
   );
-}
-
-function readPushPayload(event) {
-  if (!event.data) {
-    return {
-      title: "SleepOps shutdown",
-      body: "Start shutdown now.",
-    };
-  }
-
-  try {
-    return event.data.json();
-  } catch {
-    return {
-      title: "SleepOps shutdown",
-      body: event.data.text(),
-    };
-  }
 }
 
 async function focusOrOpenWindow(targetUrl) {
