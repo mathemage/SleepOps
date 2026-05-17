@@ -58,6 +58,25 @@ describe("SleepOps core state persistence", () => {
     );
   });
 
+  it("uses defaults for unsupported stored state versions", () => {
+    expect(
+      parseSleepOpsCoreState(
+        JSON.stringify({
+          version: 2,
+          workStart: "10:00",
+          manualMorningRoutineMinutes: 60,
+          useProfiledMorningRoutine: true,
+          commuteBufferMinutes: 45,
+          shutdownProgressState: {
+            sessionKey: "active",
+            completedActions: 2,
+          },
+          shutdownRemindersEnabled: true,
+        }),
+      ),
+    ).toEqual(DEFAULT_SLEEP_OPS_CORE_STATE);
+  });
+
   it("returns fresh default state objects for malformed stored state", () => {
     const parsed = parseSleepOpsCoreState(null);
     const normalized = normalizeSleepOpsCoreState({

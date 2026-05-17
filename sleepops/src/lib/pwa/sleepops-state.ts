@@ -51,7 +51,13 @@ export function parseSleepOpsCoreState(
       return createDefaultSleepOpsCoreState();
     }
 
-    return normalizeSleepOpsCoreState(parsed as Record<string, unknown>);
+    const state = parsed as Record<string, unknown>;
+
+    if (state.version !== STATE_VERSION) {
+      return createDefaultSleepOpsCoreState();
+    }
+
+    return normalizeSleepOpsCoreState(state);
   } catch {
     return createDefaultSleepOpsCoreState();
   }

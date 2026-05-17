@@ -5,6 +5,7 @@ import { useEffect } from "react";
 export function PwaRuntime() {
   useEffect(() => {
     if (
+      process.env.NODE_ENV !== "production" ||
       !("serviceWorker" in navigator) ||
       typeof navigator.serviceWorker?.register !== "function"
     ) {
