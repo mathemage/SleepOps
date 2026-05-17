@@ -26,7 +26,7 @@ export function resolveShutdownNotificationSupport({
   if (!isSecureContext) {
     return {
       supported: false,
-      message: "Shutdown reminders require a secure browser context.",
+      message: "Open-app shutdown reminders require a secure browser context.",
     };
   }
 
@@ -46,7 +46,7 @@ export function resolveShutdownNotificationSupport({
 
   return {
     supported: true,
-    message: "Notifications are available for shutdown reminders.",
+    message: "Notifications are available for open-app shutdown reminders.",
   };
 }
 

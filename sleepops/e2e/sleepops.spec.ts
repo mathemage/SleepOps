@@ -128,12 +128,14 @@ test("disables shutdown reminders when notification APIs are unavailable", async
 
   await page.goto("/");
 
-  const reminders = page.getByRole("region", { name: "Shutdown reminders" });
+  const reminders = page.getByRole("region", {
+    name: "Open-app shutdown reminders",
+  });
   await expect(reminders).toContainText(
     "Notifications are not supported in this browser.",
   );
   await expect(
-    reminders.getByRole("button", { name: "Enable shutdown reminders" }),
+    reminders.getByRole("button", { name: "Enable open-app reminders" }),
   ).toBeDisabled();
 });
 
@@ -168,10 +170,12 @@ test("keeps shutdown reminders pending while the service worker is still registe
 
   await page.goto("/");
 
-  const reminders = page.getByRole("region", { name: "Shutdown reminders" });
+  const reminders = page.getByRole("region", {
+    name: "Open-app shutdown reminders",
+  });
   await expect(reminders).toContainText("Finishing notification setup.");
   await expect(
-    reminders.getByRole("button", { name: "Enable shutdown reminders" }),
+    reminders.getByRole("button", { name: "Enable open-app reminders" }),
   ).toBeDisabled();
 });
 
@@ -237,31 +241,33 @@ test("requests notification permission only from the reminder enable action", as
 
   await page.goto("/");
 
-  const reminders = page.getByRole("region", { name: "Shutdown reminders" });
+  const reminders = page.getByRole("region", {
+    name: "Open-app shutdown reminders",
+  });
   await expect(reminders).toContainText(
-    "Enable reminders to be notified at shutdown start while SleepOps is open.",
+    "Enable reminders to be notified at shutdown start while this tab is open.",
   );
   await expect
     .poll(() => page.evaluate(() => window.__sleepopsPermissionRequests))
     .toBe(0);
 
   await reminders
-    .getByRole("button", { name: "Enable shutdown reminders" })
+    .getByRole("button", { name: "Enable open-app reminders" })
     .click();
 
   await expect
     .poll(() => page.evaluate(() => window.__sleepopsPermissionRequests))
     .toBe(1);
   await expect(reminders).toContainText(
-    "Reminder set for 21:30 while SleepOps is open.",
+    "Reminder set for 21:30 while this tab is open.",
   );
   await expect(
-    reminders.getByRole("button", { name: "Turn off reminders" }),
+    reminders.getByRole("button", { name: "Turn off open-app reminders" }),
   ).toBeVisible();
 
   await page.reload();
   await expect(reminders).toContainText(
-    "Reminder set for 21:30 while SleepOps is open.",
+    "Reminder set for 21:30 while this tab is open.",
   );
 });
 

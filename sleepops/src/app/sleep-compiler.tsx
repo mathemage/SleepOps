@@ -1037,7 +1037,7 @@ function ShutdownReminderSetup({
             className="text-sm font-semibold text-[#18181b]"
             id="shutdown-reminders-heading"
           >
-            Shutdown reminders
+            Open-app shutdown reminders
           </h2>
           <p className="mt-1 text-sm text-[#52525b]">{statusText}</p>
         </div>
@@ -1047,7 +1047,9 @@ function ShutdownReminderSetup({
           onClick={toggleReminders}
           type="button"
         >
-          {isEnabled ? "Turn off reminders" : "Enable shutdown reminders"}
+          {isEnabled
+            ? "Turn off open-app reminders"
+            : "Enable open-app reminders"}
         </button>
       </div>
     </section>
@@ -1233,15 +1235,30 @@ async function readShutdownReminderSupport({
   const hasNotification = typeof window.Notification !== "undefined";
   const serviceWorker =
     typeof navigator !== "undefined" ? navigator.serviceWorker : undefined;
-  const hasServiceWorker =
-    typeof serviceWorker?.ready?.then === "function";
+  const hasServiceWorker = typeof serviceWorker?.ready?.then === "function";
 
-  if (!window.isSecureContext || !hasNotification || !hasServiceWorker) {
+  if (!window.isSecureContext || !hasNotification) {
     const support: ShutdownNotificationSupport =
       resolveShutdownNotificationSupport({
         isSecureContext: window.isSecureContext,
         hasNotification,
-        hasServiceWorker,
+        hasServiceWorker: false,
+        hasShowNotification: false,
+      });
+
+    return {
+      status: "unsupported",
+      message: support.message,
+      permission: null,
+    };
+  }
+
+  if (!hasServiceWorker) {
+    const support: ShutdownNotificationSupport =
+      resolveShutdownNotificationSupport({
+        isSecureContext: window.isSecureContext,
+        hasNotification,
+        hasServiceWorker: false,
         hasShowNotification: false,
       });
 
@@ -1310,14 +1327,14 @@ function getShutdownReminderStatusText(
   }
 
   if (isEnabled) {
-    return `Reminder set for ${shutdownStartTime} while SleepOps is open.`;
+    return `Reminder set for ${shutdownStartTime} while this tab is open.`;
   }
 
   if (support.permission === "granted") {
-    return "Notifications are allowed. Shutdown reminders are off.";
+    return "Notifications are allowed. Open-app shutdown reminders are off.";
   }
 
-  return "Enable reminders to be notified at shutdown start while SleepOps is open.";
+  return "Enable reminders to be notified at shutdown start while this tab is open.";
 }
 
 async function readServiceWorkerRegistration(
