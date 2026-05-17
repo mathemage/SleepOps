@@ -170,6 +170,7 @@ function appShellRequest() {
 
 function isCacheableAsset(pathname) {
   return (
+    pathname === "/" ||
     pathname.startsWith("/_next/static/") ||
     pathname === "/manifest.webmanifest" ||
     pathname === "/favicon.ico" ||

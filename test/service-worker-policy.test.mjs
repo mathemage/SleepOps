@@ -14,10 +14,28 @@ test("service worker does not register an unused push listener", () => {
   assert.equal(listeners.has("push"), false);
 });
 
+test("service worker install caching includes the root app shell", async () => {
+  const { fetched, listeners } = loadServiceWorker();
+  const installHandler = listeners.get("install");
+  assert.equal(typeof installHandler, "function");
+
+  let cachePromise = null;
+  installHandler({
+    waitUntil: (promise) => {
+      cachePromise = promise;
+    },
+  });
+
+  assert.ok(cachePromise);
+  await cachePromise;
+  assert.ok(fetched.includes("https://sleepops.test/"));
+});
+
 test("service worker message caching accepts only shell assets", async () => {
   const { fetched, listeners } = loadServiceWorker();
 
   await cacheMessageUrls(listeners, [
+    "/",
     "/_next/static/app.js",
     "/icon-192.png",
     "/api/private",
@@ -25,6 +43,7 @@ test("service worker message caching accepts only shell assets", async () => {
   ]);
 
   assert.deepEqual(fetched, [
+    "https://sleepops.test/",
     "https://sleepops.test/_next/static/app.js",
     "https://sleepops.test/icon-192.png",
   ]);
