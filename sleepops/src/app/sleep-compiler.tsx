@@ -1,6 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   DEFAULT_SHUTDOWN_MINUTES,
   MAX_SHUTDOWN_MINUTES,
@@ -23,10 +28,10 @@ import {
   type ShutdownNotificationSupport,
 } from "@/lib/pwa/notifications";
 import {
-  DEFAULT_SLEEP_OPS_CORE_STATE,
   SLEEPOPS_STATE_STORAGE_KEY,
   parseSleepOpsCoreState,
   serializeSleepOpsCoreState,
+  type SleepOpsCoreState,
 } from "@/lib/pwa/sleepops-state";
 import { readCachedString, writeCachedString } from "@/lib/pwa/storage";
 import {
@@ -58,6 +63,7 @@ const PROFILER_STORAGE_KEY = "sleepops.morningRoutineProfiler.v1";
 const PROFILER_CHANGE_EVENT = "sleepops.morningRoutineProfiler.change";
 const SERVICE_WORKER_SUPPORT_FALLBACK_MS = 5_000;
 const SERVICE_WORKER_READY_CHECK_MS = 1_000;
+const CORE_STATE_WRITE_DEBOUNCE_MS = 250;
 const STEP_CLASSIFICATION_OPTIONS: Array<{
   value: RoutineStepClassification;
   label: string;
@@ -67,57 +73,36 @@ const STEP_CLASSIFICATION_OPTIONS: Array<{
   { value: "decision-setup", label: "Prep tonight" },
 ];
 
+function readInitialCoreState(): SleepOpsCoreState {
+  if (typeof window === "undefined") {
+    return parseSleepOpsCoreState(null);
+  }
+
+  return parseSleepOpsCoreState(readCachedString(SLEEPOPS_STATE_STORAGE_KEY));
+}
+
 export function SleepCompiler() {
-  const [hasLoadedCoreState, setHasLoadedCoreState] = useState(false);
-  const [workStart, setWorkStart] = useState(
-    DEFAULT_SLEEP_OPS_CORE_STATE.workStart,
-  );
+  const [initialCoreState] = useState(readInitialCoreState);
+  const [workStart, setWorkStart] = useState(initialCoreState.workStart);
   const [manualMorningRoutineMinutes, setManualMorningRoutineMinutes] =
-    useState(DEFAULT_SLEEP_OPS_CORE_STATE.manualMorningRoutineMinutes);
+    useState(initialCoreState.manualMorningRoutineMinutes);
   const [useProfiledMorningRoutine, setUseProfiledMorningRoutine] =
-    useState(DEFAULT_SLEEP_OPS_CORE_STATE.useProfiledMorningRoutine);
+    useState(initialCoreState.useProfiledMorningRoutine);
   const [commuteBufferMinutes, setCommuteBufferMinutes] = useState(
-    DEFAULT_SLEEP_OPS_CORE_STATE.commuteBufferMinutes,
+    initialCoreState.commuteBufferMinutes,
   );
   const [shutdownPreviewMode, setShutdownPreviewMode] = useState(false);
   const [shutdownProgressState, setShutdownProgressState] =
     useState<ShutdownProgressState>({
-      ...DEFAULT_SLEEP_OPS_CORE_STATE.shutdownProgressState,
+      ...initialCoreState.shutdownProgressState,
     });
   const [shutdownRemindersEnabled, setShutdownRemindersEnabled] = useState(
-    DEFAULT_SLEEP_OPS_CORE_STATE.shutdownRemindersEnabled,
+    initialCoreState.shutdownRemindersEnabled,
   );
   const currentClock = useCurrentClock();
 
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      const persistedCoreState = parseSleepOpsCoreState(
-        readCachedString(SLEEPOPS_STATE_STORAGE_KEY),
-      );
-
-      setWorkStart(persistedCoreState.workStart);
-      setManualMorningRoutineMinutes(
-        persistedCoreState.manualMorningRoutineMinutes,
-      );
-      setUseProfiledMorningRoutine(
-        persistedCoreState.useProfiledMorningRoutine,
-      );
-      setCommuteBufferMinutes(persistedCoreState.commuteBufferMinutes);
-      setShutdownProgressState({ ...persistedCoreState.shutdownProgressState });
-      setShutdownRemindersEnabled(persistedCoreState.shutdownRemindersEnabled);
-      setHasLoadedCoreState(true);
-    }, 0);
-
-    return () => window.clearTimeout(timeoutId);
-  }, []);
-
-  useEffect(() => {
-    if (!hasLoadedCoreState) {
-      return;
-    }
-
-    writeCachedString(
-      SLEEPOPS_STATE_STORAGE_KEY,
+  const serializedCoreState = useMemo(
+    () =>
       serializeSleepOpsCoreState({
         workStart,
         manualMorningRoutineMinutes,
@@ -126,16 +111,33 @@ export function SleepCompiler() {
         shutdownProgressState,
         shutdownRemindersEnabled,
       }),
+    [
+      commuteBufferMinutes,
+      manualMorningRoutineMinutes,
+      shutdownProgressState,
+      shutdownRemindersEnabled,
+      useProfiledMorningRoutine,
+      workStart,
+    ],
+  );
+
+  useEffect(() => {
+    const persistCoreState = () => {
+      writeCachedString(SLEEPOPS_STATE_STORAGE_KEY, serializedCoreState);
+    };
+
+    const timeoutId = window.setTimeout(
+      persistCoreState,
+      CORE_STATE_WRITE_DEBOUNCE_MS,
     );
-  }, [
-    commuteBufferMinutes,
-    hasLoadedCoreState,
-    manualMorningRoutineMinutes,
-    shutdownProgressState,
-    shutdownRemindersEnabled,
-    useProfiledMorningRoutine,
-    workStart,
-  ]);
+
+    window.addEventListener("pagehide", persistCoreState);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.removeEventListener("pagehide", persistCoreState);
+    };
+  }, [serializedCoreState]);
 
   const { recordDateKey, retainedStartKey, setRecordDateKey, todayKey } =
     useProfilerDateKeys();
