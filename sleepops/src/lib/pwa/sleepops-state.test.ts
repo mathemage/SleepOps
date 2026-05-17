@@ -57,4 +57,27 @@ describe("SleepOps core state persistence", () => {
       DEFAULT_SLEEP_OPS_CORE_STATE,
     );
   });
+
+  it("returns fresh default state objects for malformed stored state", () => {
+    const parsed = parseSleepOpsCoreState(null);
+    const normalized = normalizeSleepOpsCoreState({
+      shutdownProgressState: null,
+    });
+
+    parsed.shutdownProgressState.completedActions = 3;
+    normalized.shutdownProgressState.completedActions = 4;
+
+    expect(parseSleepOpsCoreState(null).shutdownProgressState).toEqual(
+      DEFAULT_SLEEP_OPS_CORE_STATE.shutdownProgressState,
+    );
+    expect(
+      normalizeSleepOpsCoreState({
+        shutdownProgressState: null,
+      }).shutdownProgressState,
+    ).toEqual(DEFAULT_SLEEP_OPS_CORE_STATE.shutdownProgressState);
+    expect(DEFAULT_SLEEP_OPS_CORE_STATE.shutdownProgressState).toEqual({
+      sessionKey: "",
+      completedActions: 0,
+    });
+  });
 });

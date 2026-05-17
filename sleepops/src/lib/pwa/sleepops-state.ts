@@ -42,18 +42,18 @@ export function parseSleepOpsCoreState(
   raw: string | null,
 ): SleepOpsCoreState {
   if (!raw) {
-    return DEFAULT_SLEEP_OPS_CORE_STATE;
+    return createDefaultSleepOpsCoreState();
   }
 
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") {
-      return DEFAULT_SLEEP_OPS_CORE_STATE;
+      return createDefaultSleepOpsCoreState();
     }
 
     return normalizeSleepOpsCoreState(parsed as Record<string, unknown>);
   } catch {
-    return DEFAULT_SLEEP_OPS_CORE_STATE;
+    return createDefaultSleepOpsCoreState();
   }
 }
 
@@ -94,7 +94,9 @@ export function normalizeSleepOpsCoreState(
 
 function parseShutdownProgressState(value: unknown) {
   if (!value || typeof value !== "object") {
-    return DEFAULT_SLEEP_OPS_CORE_STATE.shutdownProgressState;
+    return {
+      ...DEFAULT_SLEEP_OPS_CORE_STATE.shutdownProgressState,
+    };
   }
 
   const candidate = value as {
@@ -109,6 +111,15 @@ function parseShutdownProgressState(value: unknown) {
     completedActions: Number.isFinite(completedActions)
       ? Math.max(0, Math.floor(completedActions))
       : 0,
+  };
+}
+
+function createDefaultSleepOpsCoreState(): SleepOpsCoreState {
+  return {
+    ...DEFAULT_SLEEP_OPS_CORE_STATE,
+    shutdownProgressState: {
+      ...DEFAULT_SLEEP_OPS_CORE_STATE.shutdownProgressState,
+    },
   };
 }
 

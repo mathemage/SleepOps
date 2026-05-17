@@ -15,7 +15,7 @@ export function PwaRuntime() {
 
     const register = async () => {
       try {
-        const registration = await navigator.serviceWorker.register("/sw.js", {
+        await navigator.serviceWorker.register("/sw.js", {
           scope: "/",
           updateViaCache: "none",
         });
@@ -26,7 +26,6 @@ export function PwaRuntime() {
         }
 
         cacheAppShell(readyRegistration);
-        cacheAppShell(registration);
       } catch {
         // The app remains fully usable online if service worker registration fails.
       }
