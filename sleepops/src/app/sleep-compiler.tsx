@@ -2,7 +2,9 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -120,6 +122,11 @@ export function SleepCompiler() {
       workStart,
     ],
   );
+  const latestSerializedCoreState = useRef(serializedCoreState);
+
+  useLayoutEffect(() => {
+    latestSerializedCoreState.current = serializedCoreState;
+  }, [serializedCoreState]);
 
   useEffect(() => {
     const persistCoreState = () => {
@@ -131,13 +138,25 @@ export function SleepCompiler() {
       CORE_STATE_WRITE_DEBOUNCE_MS,
     );
 
-    window.addEventListener("pagehide", persistCoreState);
-
     return () => {
       window.clearTimeout(timeoutId);
-      window.removeEventListener("pagehide", persistCoreState);
     };
   }, [serializedCoreState]);
+
+  useEffect(() => {
+    const persistLatestCoreState = () => {
+      writeCachedString(
+        SLEEPOPS_STATE_STORAGE_KEY,
+        latestSerializedCoreState.current,
+      );
+    };
+
+    window.addEventListener("pagehide", persistLatestCoreState);
+
+    return () => {
+      window.removeEventListener("pagehide", persistLatestCoreState);
+    };
+  }, []);
 
   const { recordDateKey, retainedStartKey, setRecordDateKey, todayKey } =
     useProfilerDateKeys();
@@ -1352,12 +1371,22 @@ async function readServiceWorkerRegistration(
       return registration;
     }
 
-    return await Promise.race<ServiceWorkerRegistration | null>([
-      serviceWorker.ready,
-      new Promise((resolve) => {
-        window.setTimeout(() => resolve(null), SERVICE_WORKER_READY_CHECK_MS);
-      }),
-    ]);
+    let timeoutId: number | null = null;
+    try {
+      return await Promise.race<ServiceWorkerRegistration | null>([
+        serviceWorker.ready,
+        new Promise((resolve) => {
+          timeoutId = window.setTimeout(
+            () => resolve(null),
+            SERVICE_WORKER_READY_CHECK_MS,
+          );
+        }),
+      ]);
+    } finally {
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    }
   } catch {
     return null;
   }

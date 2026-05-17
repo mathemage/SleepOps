@@ -126,7 +126,7 @@ Make this as a **PWA with an offline-capable local cache**:
 Frontend: Next.js / React
 Storage: Supabase Postgres as source of truth + IndexedDB offline cache
 Auth: magic link / passkey
-Notifications: Web Push where available
+Notifications: Open-app shutdown reminders for the MVP
 Calendar: Google Calendar integration later
 Charts: simple duration trends
 ```
