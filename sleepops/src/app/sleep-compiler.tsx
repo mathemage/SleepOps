@@ -30,7 +30,10 @@ import {
   type ShutdownNotificationSupport,
 } from "@/lib/pwa/notifications";
 import {
+  MAX_COMMUTE_BUFFER_MINUTES,
+  MAX_MORNING_ROUTINE_MINUTES,
   SLEEPOPS_STATE_STORAGE_KEY,
+  SLEEPOPS_MINUTES_STEP,
   parseSleepOpsCoreState,
   serializeSleepOpsCoreState,
   type SleepOpsCoreState,
@@ -57,9 +60,6 @@ import {
   type RoutineStepClassification,
 } from "@/lib/routine";
 
-const MINUTES_STEP = 5;
-const MAX_ROUTINE_MINUTES = 900;
-const MAX_BUFFER_MINUTES = 240;
 const PROFILER_RETENTION_DAYS = 7;
 const PROFILER_STORAGE_KEY = "sleepops.morningRoutineProfiler.v1";
 const PROFILER_CHANGE_EVENT = "sleepops.morningRoutineProfiler.change";
@@ -173,7 +173,7 @@ export function SleepCompiler() {
         profiler,
         todayKey,
         PROFILER_RETENTION_DAYS,
-        MINUTES_STEP,
+        SLEEPOPS_MINUTES_STEP,
       );
     },
     [profiler, todayKey],
@@ -201,7 +201,7 @@ export function SleepCompiler() {
           next,
           todayKey,
           PROFILER_RETENTION_DAYS,
-          MINUTES_STEP,
+          SLEEPOPS_MINUTES_STEP,
         );
 
         if (nextProfiledMinutes === null) {
@@ -471,7 +471,7 @@ export function SleepCompiler() {
             <DurationControl
               id="morning-routine"
               label="Morning routine duration"
-              max={MAX_ROUTINE_MINUTES}
+              max={MAX_MORNING_ROUTINE_MINUTES}
               onChange={setManualMorningRoutineMinutes}
               value={effectiveMorningRoutineMinutes}
               disabled={useProfiledMorningRoutine && canUseProfiled}
@@ -500,7 +500,7 @@ export function SleepCompiler() {
             <DurationControl
               id="commute-buffer"
               label="Commute / buffer duration"
-              max={MAX_BUFFER_MINUTES}
+              max={MAX_COMMUTE_BUFFER_MINUTES}
               onChange={setCommuteBufferMinutes}
               value={commuteBufferMinutes}
             />
@@ -582,7 +582,7 @@ export function SleepCompiler() {
                           className="h-12 w-full border border-[#cfd8d1] bg-[#fbfcfb] px-3 text-lg font-semibold text-[#18181b] outline-none focus:border-[#166534]"
                           disabled={!todayKey || !recordDateKey}
                           inputMode="numeric"
-                          max={MAX_ROUTINE_MINUTES}
+                          max={MAX_MORNING_ROUTINE_MINUTES}
                           min={0}
                           onChange={(event) => {
                             if (!todayKey || !recordDateKey) {
@@ -1141,9 +1141,11 @@ function DurationControl({
             max={max}
             min={0}
             onChange={(event) =>
-              onChange(readMinutes(event.currentTarget, max, MINUTES_STEP))
+              onChange(
+                readMinutes(event.currentTarget, max, SLEEPOPS_MINUTES_STEP),
+              )
             }
-            step={MINUTES_STEP}
+            step={SLEEPOPS_MINUTES_STEP}
             type="number"
             value={value}
           />
@@ -1157,9 +1159,11 @@ function DurationControl({
         max={max}
         min={0}
         onChange={(event) =>
-          onChange(readMinutes(event.currentTarget, max, MINUTES_STEP))
+          onChange(
+            readMinutes(event.currentTarget, max, SLEEPOPS_MINUTES_STEP),
+          )
         }
-        step={MINUTES_STEP}
+        step={SLEEPOPS_MINUTES_STEP}
         type="range"
         value={value}
       />

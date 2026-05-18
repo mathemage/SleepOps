@@ -27,9 +27,9 @@ export const DEFAULT_SLEEP_OPS_CORE_STATE: SleepOpsCoreState = {
 };
 
 const STATE_VERSION = 1;
-const MAX_ROUTINE_MINUTES = 900;
-const MAX_BUFFER_MINUTES = 240;
-const MINUTES_STEP = 5;
+export const MAX_MORNING_ROUTINE_MINUTES = 900;
+export const MAX_COMMUTE_BUFFER_MINUTES = 240;
+export const SLEEPOPS_MINUTES_STEP = 5;
 
 export function serializeSleepOpsCoreState(state: SleepOpsCoreState): string {
   return JSON.stringify({
@@ -79,7 +79,7 @@ export function normalizeSleepOpsCoreState(
     manualMorningRoutineMinutes: readSteppedMinutes(
       value.manualMorningRoutineMinutes,
       DEFAULT_SLEEP_OPS_CORE_STATE.manualMorningRoutineMinutes,
-      MAX_ROUTINE_MINUTES,
+      MAX_MORNING_ROUTINE_MINUTES,
     ),
     useProfiledMorningRoutine:
       typeof value.useProfiledMorningRoutine === "boolean"
@@ -88,7 +88,7 @@ export function normalizeSleepOpsCoreState(
     commuteBufferMinutes: readSteppedMinutes(
       value.commuteBufferMinutes,
       DEFAULT_SLEEP_OPS_CORE_STATE.commuteBufferMinutes,
-      MAX_BUFFER_MINUTES,
+      MAX_COMMUTE_BUFFER_MINUTES,
     ),
     shutdownProgressState,
     shutdownRemindersEnabled:
@@ -139,7 +139,8 @@ function readSteppedMinutes(
     return fallback;
   }
 
-  const rounded = Math.round(minutes / MINUTES_STEP) * MINUTES_STEP;
+  const rounded =
+    Math.round(minutes / SLEEPOPS_MINUTES_STEP) * SLEEPOPS_MINUTES_STEP;
   return Math.min(max, Math.max(0, rounded));
 }
 
