@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f6f8f7;
-  --foreground: #171717;
+  --background: #e7ecf1;
+  --foreground: #0f172a;
 }
 
 @theme inline {
@@ -17,12 +17,21 @@
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(circle at 0% 0%, #f6f8fb 0%, transparent 40%),
+    radial-gradient(circle at 100% 0%, #edf2f7 0%, transparent 38%),
+    linear-gradient(180deg, #eef2f6 0%, var(--background) 52%, #dde3ea 100%);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), "Segoe UI", sans-serif;
+  min-height: 100vh;
 }
 
 button,
 input {
   font: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid #475569;
+  outline-offset: 2px;
 }
