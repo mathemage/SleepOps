@@ -350,15 +350,29 @@ export function SleepCompiler() {
   }
 
   const results = [
-    { label: "Wake time", value: schedule.wakeTime },
-    { label: "Latest bedtime", value: schedule.latestBedtime },
-    { label: "Shutdown start", value: schedule.shutdownStartTime },
+    {
+      accentClassName: "bg-[#6889a3]",
+      label: "Wake time",
+      value: schedule.wakeTime,
+    },
+    {
+      accentClassName: "bg-[#6c7898]",
+      label: "Latest bedtime",
+      value: schedule.latestBedtime,
+    },
+    {
+      accentClassName: "bg-[#b97845]",
+      label: "Shutdown start",
+      value: schedule.shutdownStartTime,
+    },
     hasWarning
       ? {
+          accentClassName: "bg-[#c35358]",
           label: "Overbooked by",
           value: formatDuration(Math.abs(schedule.availableFlexMinutes)),
         }
       : {
+          accentClassName: "bg-[#4d8c78]",
           label: "Free time left today",
           value: formatDuration(schedule.availableFlexMinutes),
         },
@@ -368,33 +382,64 @@ export function SleepCompiler() {
     {
       label: "Shutdown",
       value: schedule.shutdownStartTime,
-      className: "border-[#c2410c] bg-[#fed7aa]",
+      className: "border-[#d6b391] bg-[#f5e7da]",
+      markerClassName: "bg-[#af6432]",
     },
     {
       label: "Lights out",
       value: schedule.latestBedtime,
-      className: "border-[#15803d] bg-[#bbf7d0]",
+      className: "border-[#aebbc8] bg-[#e9eef3]",
+      markerClassName: "bg-[#607a91]",
     },
     {
       label: "Wake",
       value: schedule.wakeTime,
-      className: "border-[#1d4ed8] bg-[#bfdbfe]",
+      className: "border-[#b4b9d1] bg-[#ececf5]",
+      markerClassName: "bg-[#6f7095]",
     },
   ];
 
   return (
-    <main className="min-h-screen bg-[#f6f8f7] px-4 py-5 text-[#18181b] sm:px-6 lg:px-8">
-      <div className="mx-auto grid min-h-[calc(100vh-2.5rem)] w-full max-w-6xl gap-6 lg:grid-cols-[0.8fr_1.2fr]">
-        <section className="flex flex-col justify-between gap-8 border border-[#d8dfda] bg-white p-5 shadow-sm sm:p-6 lg:p-8">
-          <div className="space-y-5">
+    <main className="relative min-h-screen px-3 py-3 text-[#131a21] sm:px-5 sm:py-5 xl:px-6 xl:py-6">
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-px bg-white/80" />
+      <div className="mx-auto grid min-h-[calc(100vh-1.5rem)] w-full max-w-[90rem] gap-4 sm:min-h-[calc(100vh-2.5rem)] sm:gap-5 xl:grid-cols-[minmax(340px,0.78fr)_minmax(0,1.42fr)] xl:items-start xl:gap-6">
+        <section className="metal-panel-dark relative flex flex-col justify-between gap-8 overflow-hidden p-5 text-white sm:p-7 lg:gap-5 lg:p-6 xl:min-h-[calc(100vh-3rem)] xl:gap-8 xl:p-7">
+          <div
+            aria-hidden="true"
+            className="absolute -right-24 -top-24 size-72 rounded-full border border-white/[0.06] bg-white/[0.025]"
+          />
+          <div className="relative z-10 space-y-7 lg:space-y-5 xl:space-y-7">
+            <div className="flex flex-col items-start gap-4 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <span
+                  aria-hidden="true"
+                  className="flex size-11 shrink-0 items-center justify-center rounded-[0.9rem] border border-white/20 bg-white/10 font-mono text-lg font-semibold text-[#d9e5ee] shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]"
+                >
+                  S
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold tracking-[0.08em] text-white">
+                    SleepOps
+                  </p>
+                  <p className="truncate text-xs text-[#9facb7]">
+                    Constraint control
+                  </p>
+                </div>
+              </div>
+              <span className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[#79a99a]/35 bg-[#79a99a]/10 px-3 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.13em] text-[#b8dfd2]">
+                <span className="size-1.5 rounded-full bg-[#7cc4ad] shadow-[0_0_0_4px_rgba(124,196,173,0.1)]" />
+                9h protected
+              </span>
+            </div>
+
             <div>
-              <p className="text-sm font-semibold text-[#166534]">
-                SleepOps
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#9facb7]">
+                Tonight&apos;s contract
               </p>
-              <h1 className="mt-2 max-w-lg text-4xl font-semibold leading-tight text-[#18181b] sm:text-5xl">
+              <h1 className="mt-3 max-w-lg text-4xl font-semibold leading-[1.02] tracking-[-0.045em] text-white sm:text-5xl">
                 Tonight&apos;s shutdown deadline
               </h1>
-              <p className="mt-3 max-w-2xl text-sm text-[#52525b]">
+              <p className="mt-4 max-w-xl text-sm leading-6 text-[#aeb9c3]">
                 Enter tomorrow&apos;s work start, morning routine, and buffer.
                 SleepOps turns that into tonight&apos;s shutdown time, bedtime,
                 and wake-up plan.
@@ -403,17 +448,17 @@ export function SleepCompiler() {
 
             <div
               aria-live={hasWarning ? "assertive" : "polite"}
-              className={`border p-4 ${
+              className={`rounded-2xl border p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:p-5 ${
                 hasWarning
-                  ? "border-[#b91c1c] bg-[#fee2e2]"
-                  : "border-[#15803d] bg-[#dcfce7]"
+                  ? "border-[#9b4d52]/70 bg-[#7d3037]/25 text-[#ffd9dc]"
+                  : "border-[#7796ae]/55 bg-[#6c89a1]/15 text-[#e9f2f8]"
               }`}
               role={hasWarning ? "alert" : "status"}
             >
-              <p className="text-sm font-semibold">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] opacity-75">
                 {hasWarning ? "Constraint violated" : "Next action"}
               </p>
-              <p className="mt-2 text-2xl font-semibold leading-snug">
+              <p className="tabular-time mt-3 text-2xl font-semibold leading-snug tracking-[-0.035em] sm:text-3xl">
                 {hasWarning
                   ? schedule.constraintWarning
                   : `Start shutdown by ${schedule.shutdownStartTime}`}
@@ -421,11 +466,17 @@ export function SleepCompiler() {
             </div>
 
             <button
-              className="h-12 w-full border border-[#166534] bg-[#166534] px-4 text-sm font-semibold text-white hover:bg-[#14532d] sm:w-auto"
+              className="button-inverse flex min-h-12 w-full items-center justify-center gap-2 whitespace-nowrap px-4 text-sm font-semibold min-[360px]:gap-3 min-[360px]:px-5 sm:w-auto"
               onClick={enterShutdownPreview}
               type="button"
             >
               Preview shutdown mode
+              <span
+                aria-hidden="true"
+                className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[#17212a] text-sm text-white"
+              >
+                →
+              </span>
             </button>
 
             <ShutdownReminderSetup
@@ -435,31 +486,45 @@ export function SleepCompiler() {
             />
           </div>
 
-          <div className="grid gap-3 text-sm text-[#52525b]">
-            <div className="flex items-center justify-between gap-4 border-t border-[#e4e7e4] pt-4">
-              <span>Required sleep</span>
-              <strong className="text-[#18181b]">
+          <div className="relative z-10 grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.055] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+              <span className="block text-xs text-[#9facb7]">Required sleep</span>
+              <strong className="tabular-time mt-2 block text-xl font-semibold text-white">
                 {formatDuration(REQUIRED_SLEEP_MINUTES)}
               </strong>
             </div>
-            <div className="flex items-center justify-between gap-4 border-t border-[#e4e7e4] pt-4">
-              <span>Shutdown duration</span>
-              <strong className="text-[#18181b]">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.055] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+              <span className="block text-xs text-[#9facb7]">Shutdown duration</span>
+              <strong className="tabular-time mt-2 block text-xl font-semibold text-white">
                 {formatDuration(schedule.shutdownMinutes)}
               </strong>
             </div>
           </div>
         </section>
 
-        <section className="grid gap-5">
+        <section aria-label="Sleep planning workspace" className="grid gap-4 sm:gap-5">
           <form
-            className="grid gap-5 border border-[#d8dfda] bg-white p-5 shadow-sm sm:p-6"
+            className="metal-panel grid gap-5 p-5 sm:p-6"
             onSubmit={(event) => event.preventDefault()}
           >
-            <label className="grid gap-2 text-sm font-medium text-[#3f3f46]">
-              Work start time
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#596976]">
+                  Sleep contract
+                </p>
+                <h2 className="mt-1 text-2xl font-semibold tracking-[-0.03em] text-[#151d24]">
+                  Plan inputs
+                </h2>
+              </div>
+              <span className="w-fit rounded-full border border-[#c7d0d8] bg-white/70 px-3 py-1.5 text-xs font-medium text-[#596672]">
+                Tomorrow
+              </span>
+            </div>
+
+            <label className="grid gap-2 text-sm font-medium text-[#394550]">
+              <span>Work start time</span>
               <input
-                className="h-12 w-full border border-[#cfd8d1] bg-[#fbfcfb] px-3 text-lg font-semibold text-[#18181b] outline-none focus:border-[#166534]"
+                className="sleepops-control tabular-time h-12 w-full px-3 text-lg font-semibold"
                 onChange={(event) =>
                   setWorkStart(event.currentTarget.value || "00:00")
                 }
@@ -477,10 +542,10 @@ export function SleepCompiler() {
               disabled={useProfiledMorningRoutine && canUseProfiled}
             />
 
-            <label className="flex items-start gap-3 border border-[#d8dfda] bg-[#fbfcfb] p-3 text-sm text-[#3f3f46]">
+            <label className="inset-panel flex items-start gap-3 p-3.5 text-sm text-[#394550]">
               <input
                 checked={useProfiledMorningRoutine}
-                className="mt-1 accent-[#166534]"
+                className="mt-0.5 size-4 shrink-0 accent-[#46657d]"
                 disabled={!canUseProfiled}
                 onChange={(event) =>
                   setUseProfiledMorningRoutine(event.currentTarget.checked)
@@ -489,7 +554,7 @@ export function SleepCompiler() {
               />
               <span>
                 Use measured 7-day average
-                <span className="ml-2 text-[#52525b]">
+                <span className="ml-2 text-[#687581]">
                   {canUseProfiled
                     ? `(${formatDuration(profiledMorningRoutineMinutes!)})`
                     : "(record a day to enable)"}
@@ -506,17 +571,24 @@ export function SleepCompiler() {
             />
           </form>
 
-          <section className="border border-[#d8dfda] bg-white p-5 shadow-sm sm:p-6">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <h2 className="text-xl font-semibold">Morning routine profiler</h2>
-              <p className="text-sm text-[#52525b]">Keeps the last 7 days locally.</p>
+          <section className="metal-panel p-5 sm:p-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#596976]">
+                  Routine intelligence
+                </p>
+                <h2 className="mt-1 text-2xl font-semibold tracking-[-0.03em] text-[#151d24]">
+                  Morning routine profiler
+                </h2>
+              </div>
+              <p className="text-sm text-[#687581]">Keeps the last 7 days locally.</p>
             </div>
 
-            <div className="mt-4 grid gap-4">
-              <label className="grid gap-2 text-sm font-medium text-[#3f3f46]">
+            <div className="mt-5 grid gap-4">
+              <label className="grid gap-2 text-sm font-medium text-[#394550]">
                 Day
                 <input
-                  className="h-12 w-full border border-[#cfd8d1] bg-[#fbfcfb] px-3 text-lg font-semibold text-[#18181b] outline-none focus:border-[#166534]"
+                  className="sleepops-control tabular-time h-12 w-full px-3 text-lg font-semibold"
                   disabled={!todayKey}
                   max={todayKey ?? undefined}
                   min={retainedStartKey ?? undefined}
@@ -529,7 +601,7 @@ export function SleepCompiler() {
               </label>
 
               <div className="grid gap-2">
-                <p className="text-sm font-medium text-[#3f3f46]">
+                <p className="text-sm font-medium text-[#394550]">
                   Steps (minutes)
                 </p>
                 <div className="grid gap-2">
@@ -541,12 +613,14 @@ export function SleepCompiler() {
 
                     return (
                       <div
-                        className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_160px_120px_auto] sm:items-center"
+                        aria-label={`Routine step ${step.id}`}
+                        className="inset-panel grid grid-cols-[minmax(0,1fr)_5.75rem] gap-2 p-2.5 sm:grid-cols-[minmax(0,1fr)_11rem_6.5rem_auto] sm:items-center"
                         key={step.id}
+                        role="group"
                       >
                         <input
                           aria-label={`Step name ${step.id}`}
-                          className="h-12 w-full border border-[#cfd8d1] bg-[#fbfcfb] px-3 text-sm font-semibold text-[#18181b] outline-none focus:border-[#166534]"
+                          className="sleepops-control col-span-2 h-11 w-full px-3 text-sm font-semibold sm:col-span-1"
                           onChange={(event) => {
                             const label = event.currentTarget.value;
                             updateMorningProfiler((current) =>
@@ -558,7 +632,7 @@ export function SleepCompiler() {
                         />
                         <select
                           aria-label={`Classify ${step.id}`}
-                          className="h-12 w-full border border-[#cfd8d1] bg-[#fbfcfb] px-3 text-sm font-semibold text-[#18181b] outline-none focus:border-[#166534]"
+                          className="sleepops-control col-span-2 h-11 w-full px-3 text-sm font-semibold sm:col-span-1"
                           onChange={(event) =>
                             updateMorningProfiler((current) =>
                               setStepClassification(
@@ -579,7 +653,7 @@ export function SleepCompiler() {
                         </select>
                         <input
                           aria-label={`Minutes ${step.id}`}
-                          className="h-12 w-full border border-[#cfd8d1] bg-[#fbfcfb] px-3 text-lg font-semibold text-[#18181b] outline-none focus:border-[#166534]"
+                          className="sleepops-control tabular-time h-11 w-full px-3 text-base font-semibold"
                           disabled={!todayKey || !recordDateKey}
                           inputMode="numeric"
                           max={MAX_MORNING_ROUTINE_MINUTES}
@@ -606,7 +680,7 @@ export function SleepCompiler() {
                         />
                         <button
                           aria-label={`Remove step ${step.id}`}
-                          className="h-12 border border-[#d8dfda] bg-white px-3 text-sm font-semibold text-[#18181b] hover:bg-[#fbfcfb]"
+                          className="button-secondary h-11 px-3 text-sm font-semibold"
                           onClick={() =>
                             updateMorningProfiler((current) =>
                               removeStep(current, step.id),
@@ -623,7 +697,7 @@ export function SleepCompiler() {
               </div>
 
               <form
-                className="grid gap-2 sm:grid-cols-[1fr_auto]"
+                className="inset-panel grid gap-2 p-3 sm:grid-cols-[1fr_auto]"
                 onSubmit={(event) => {
                   event.preventDefault();
                   const label = newStepLabel.trim();
@@ -637,11 +711,11 @@ export function SleepCompiler() {
                   setNewStepLabel("");
                 }}
               >
-                <label className="grid gap-2 text-sm font-medium text-[#3f3f46]">
+                <label className="grid gap-2 text-sm font-medium text-[#394550]">
                   New step
                   <input
                     aria-label="New step name"
-                    className="h-12 w-full border border-[#cfd8d1] bg-[#fbfcfb] px-3 text-sm font-semibold text-[#18181b] outline-none focus:border-[#166534]"
+                    className="sleepops-control h-11 w-full px-3 text-sm font-semibold"
                     onChange={(event) => setNewStepLabel(event.currentTarget.value)}
                     placeholder="e.g., Breakfast"
                     type="text"
@@ -649,23 +723,23 @@ export function SleepCompiler() {
                   />
                 </label>
                 <button
-                  className="h-12 self-end border border-[#d8dfda] bg-white px-4 text-sm font-semibold text-[#18181b] hover:bg-[#fbfcfb]"
+                  className="button-secondary h-11 self-end px-4 text-sm font-semibold"
                   type="submit"
                 >
                   Add step
                 </button>
               </form>
 
-              <div className="grid gap-2 border-t border-[#e4e7e4] pt-4 text-sm text-[#52525b]">
-                <div className="flex items-center justify-between gap-4">
+              <div className="grid gap-2 text-sm text-[#687581] sm:grid-cols-2">
+                <div className="inset-panel flex items-center justify-between gap-4 p-3.5">
                   <span>Day total</span>
-                  <strong className="text-[#18181b]">
+                  <strong className="tabular-time text-[#151d24]">
                     {formatDuration(displayedTotalMinutesForDay(profiler, recordDateKey))}
                   </strong>
                 </div>
-                <div className="flex items-center justify-between gap-4">
+                <div className="inset-panel flex items-center justify-between gap-4 p-3.5">
                   <span>7-day measured average</span>
-                  <strong className="text-[#18181b]">
+                  <strong className="tabular-time text-[#151d24]">
                     {profiledMorningRoutineMinutes === null
                       ? "—"
                       : formatDuration(profiledMorningRoutineMinutes)}
@@ -679,31 +753,34 @@ export function SleepCompiler() {
 
           <section
             aria-labelledby="routine-compressor-heading"
-            className="border border-[#d8dfda] bg-white p-5 shadow-sm sm:p-6"
+            className="metal-panel p-5 sm:p-6"
           >
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#596976]">
+                  Decision removal
+                </p>
                 <h2
-                  className="text-xl font-semibold"
+                  className="mt-1 text-2xl font-semibold tracking-[-0.03em] text-[#151d24]"
                   id="routine-compressor-heading"
                 >
                   Routine compressor
                 </h2>
-                <p className="mt-1 text-sm text-[#52525b]">
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#687581]">
                   Uses the selected profiler day. Mark each step as required in
                   the morning, movable to the evening, or something you can prep
                   tonight ahead of time.
                 </p>
               </div>
-              <div className="text-sm text-[#52525b]">
+              <div className="w-fit rounded-full border border-[#c7d0d8] bg-white/70 px-3 py-1.5 text-xs text-[#687581]">
                 Profiled total{" "}
-                <strong className="text-[#18181b]">
+                <strong className="tabular-time text-[#151d24]">
                   {formatDuration(routineCompression.totalProfiledMinutes)}
                 </strong>
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 lg:grid-cols-3">
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
               <CompressionBlock
                 emptyText="No required morning tasks with minutes."
                 listLabel="Minimum viable morning tasks"
@@ -727,15 +804,15 @@ export function SleepCompiler() {
               />
             </div>
 
-            <div className="mt-5 flex flex-col gap-3 border-t border-[#e4e7e4] pt-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm text-[#52525b]">
+            <div className="mt-5 flex flex-col gap-4 border-t border-[#d5dce2] pt-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-[#687581]">
                 Compressed morning duration
-                <strong className="ml-2 text-lg text-[#18181b]">
+                <strong className="tabular-time ml-2 text-lg text-[#151d24]">
                   {formatDuration(routineCompression.minimumMorningMinutes)}
                 </strong>
               </div>
               <button
-                className="h-12 border border-[#166534] bg-[#166534] px-4 text-sm font-semibold text-white hover:bg-[#14532d]"
+                className="button-primary min-h-12 px-4 text-sm font-semibold"
                 onClick={applyCompressedRoutine}
                 type="button"
               >
@@ -747,29 +824,38 @@ export function SleepCompiler() {
           <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {results.map((result) => (
               <div
-                className="min-h-32 border border-[#d8dfda] bg-white p-4 shadow-sm"
+                className="metal-panel group relative min-h-32 overflow-hidden p-4"
                 key={result.label}
               >
-                <dt className="text-sm font-medium text-[#52525b]">
+                <dt className="pl-2 text-xs font-semibold uppercase tracking-[0.1em] text-[#687581]">
+                  <span
+                    aria-hidden="true"
+                    className={`absolute inset-y-4 left-0 w-1 rounded-r-full ${result.accentClassName}`}
+                  />
                   {result.label}
                 </dt>
-                <dd className="mt-4 text-3xl font-semibold text-[#18181b]">
+                <dd className="tabular-time mt-5 pl-2 text-3xl font-semibold text-[#151d24]">
                   {result.value}
                 </dd>
               </div>
             ))}
           </dl>
 
-          <section className="border border-[#d8dfda] bg-white p-5 shadow-sm sm:p-6">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <section className="metal-panel p-5 sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 className="text-xl font-semibold">Tonight timeline</h2>
-                <p className="mt-1 text-sm text-[#52525b]">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#596976]">
+                  Compiled output
+                </p>
+                <h2 className="mt-1 text-2xl font-semibold tracking-[-0.03em] text-[#151d24]">
+                  Tonight timeline
+                </h2>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-[#687581]">
                   The checkpoints below show when shutdown starts, when you need
                   to be in bed, and when tomorrow begins.
                 </p>
               </div>
-              <p className="text-sm text-[#52525b]">
+              <p className="max-w-xs text-sm leading-6 text-[#687581] sm:text-right">
                 {hasWarning
                   ? "Your shutdown-and-sleep window no longer fits before work."
                   : `${formatDuration(
@@ -778,16 +864,20 @@ export function SleepCompiler() {
               </p>
             </div>
 
-            <div className="mt-5 grid overflow-hidden border border-[#d8dfda] sm:grid-cols-3">
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
               {rail.map((item) => (
                 <div
-                  className={`min-h-28 border-b p-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0 ${item.className}`}
+                  className={`relative min-h-28 overflow-hidden rounded-2xl border p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] ${item.className}`}
                   key={item.label}
                 >
-                  <p className="text-sm font-medium text-[#27272a]">
+                  <span
+                    aria-hidden="true"
+                    className={`absolute left-4 top-4 size-2 rounded-full ${item.markerClassName}`}
+                  />
+                  <p className="pl-5 text-xs font-semibold uppercase tracking-[0.12em] text-[#495661]">
                     {item.label}
                   </p>
-                  <p className="mt-3 text-3xl font-semibold text-[#18181b]">
+                  <p className="tabular-time mt-4 text-3xl font-semibold text-[#151d24]">
                     {item.value}
                   </p>
                 </div>
@@ -822,12 +912,23 @@ type ClockSnapshot = {
 
 function SleepOpsLoading() {
   return (
-    <main className="min-h-screen bg-[#f6f8f7] px-4 py-5 text-[#18181b] sm:px-6 lg:px-8">
+    <main className="min-h-screen px-3 py-3 text-[#131a21] sm:px-5 sm:py-5">
       <section
         aria-label="SleepOps loading"
-        className="mx-auto flex min-h-[calc(100vh-2.5rem)] w-full max-w-3xl items-center border border-[#d8dfda] bg-white p-5 shadow-sm sm:p-8"
+        className="metal-panel-dark mx-auto flex min-h-[calc(100vh-1.5rem)] w-full max-w-3xl items-center justify-center p-6 text-white sm:min-h-[calc(100vh-2.5rem)] sm:p-8"
       >
-        <p className="text-sm font-semibold text-[#166534]">SleepOps</p>
+        <div className="flex items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="flex size-11 items-center justify-center rounded-[0.9rem] border border-white/20 bg-white/10 font-mono text-lg font-semibold text-[#d9e5ee]"
+          >
+            S
+          </span>
+          <div>
+            <p className="text-sm font-semibold tracking-[0.08em]">SleepOps</p>
+            <p className="mt-0.5 text-xs text-[#9facb7]">Compiling tonight</p>
+          </div>
+        </div>
       </section>
     </main>
   );
@@ -848,31 +949,79 @@ function ShutdownAssistant({
 }) {
   const isComplete = progress.status === "complete";
   const actionNumber = progress.completedActions + 1;
+  const progressPercent = isComplete
+    ? 100
+    : (progress.completedActions / progress.totalActions) * 100;
 
   return (
-    <main className="min-h-screen bg-[#101513] px-4 py-5 text-white sm:px-6 lg:px-8">
+    <main className="relative isolate min-h-screen overflow-hidden bg-[#080c10] px-3 py-3 text-white sm:px-5 sm:py-5 lg:px-6 lg:py-6">
+      <div
+        aria-hidden="true"
+        className="absolute -left-40 top-1/4 -z-10 size-[32rem] rounded-full bg-[#506a7d]/15 blur-3xl"
+      />
+      <div
+        aria-hidden="true"
+        className="absolute -right-48 -top-48 -z-10 size-[34rem] rounded-full bg-[#9d6947]/12 blur-3xl"
+      />
       <section
         aria-label="Evening shutdown assistant"
-        className="mx-auto flex min-h-[calc(100vh-2.5rem)] w-full max-w-3xl flex-col justify-center gap-8 border border-[#34443c] bg-[#16211c] p-5 shadow-sm sm:p-8"
+        className="metal-panel-dark mx-auto flex min-h-[calc(100vh-1.5rem)] w-full max-w-4xl flex-col justify-between gap-5 p-4 min-[360px]:gap-8 min-[360px]:p-5 sm:min-h-[calc(100vh-2.5rem)] sm:gap-10 sm:p-8 lg:min-h-[calc(100vh-3rem)] lg:p-10"
       >
-        <div className="space-y-3">
-          <p className="text-sm font-semibold text-[#86efac]">
-            Shutdown {shutdownWindow.shutdownStartTime}-{shutdownWindow.lightsOutTime}
-          </p>
-          <h1 className="text-4xl font-semibold leading-tight sm:text-6xl">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span
+              aria-hidden="true"
+              className="flex size-11 items-center justify-center rounded-[0.9rem] border border-white/20 bg-white/10 font-mono text-lg font-semibold text-[#d9e5ee]"
+            >
+              S
+            </span>
+            <div>
+              <p className="text-sm font-semibold tracking-[0.08em]">SleepOps</p>
+              <p className="mt-0.5 text-xs text-[#9facb7]">Shutdown protocol</p>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-2 rounded-full border border-[#c38b62]/30 bg-[#c38b62]/10 px-3 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.13em] text-[#e8b58e]">
+            <span className="size-1.5 rounded-full bg-[#d59a70] shadow-[0_0_0_4px_rgba(213,154,112,0.1)]" />
+            {isPreview ? "Preview" : "Active window"}
+          </span>
+        </div>
+
+        <div className="rounded-[1.35rem] border border-white/10 bg-black/15 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] min-[360px]:p-5 sm:p-7 lg:p-8">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#e0a77d]">
+              Shutdown {shutdownWindow.shutdownStartTime}-{shutdownWindow.lightsOutTime}
+            </p>
+            <p className="text-xs font-medium text-[#8f9ca7]">
+              {isComplete
+                ? "Sequence complete"
+                : `Action ${actionNumber} of ${progress.totalActions}`}
+            </p>
+          </div>
+
+          <div
+            aria-hidden="true"
+            className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/10 min-[360px]:mt-5"
+          >
+            <div
+              className="h-full rounded-full bg-[linear-gradient(90deg,#bb7a51,#e4b084)] transition-[width] duration-300"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+
+          <h1 className="mt-5 max-w-3xl text-[2rem] font-semibold leading-[1.04] tracking-[-0.045em] text-white min-[360px]:mt-7 min-[360px]:text-4xl sm:mt-8 sm:text-6xl">
             {isComplete ? "Lights out" : progress.action.label}
           </h1>
-          <p className="text-sm text-[#d1d5db]">
+          <p className="mt-3 text-sm leading-6 text-[#aab5be] min-[360px]:mt-5">
             {isComplete
               ? "Shutdown complete. Go to bed now."
-              : `Action ${actionNumber} of ${progress.totalActions}`}
+              : "One action only. Finish it, then move forward."}
           </p>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="flex flex-col gap-2 min-[360px]:gap-3 sm:flex-row sm:items-center">
           {progress.status === "active" ? (
             <button
-              className="h-14 border border-[#bbf7d0] bg-[#bbf7d0] px-5 text-base font-semibold text-[#101513] hover:bg-[#86efac]"
+              className="button-inverse min-h-12 px-6 text-base font-semibold min-[360px]:min-h-14 sm:min-w-36"
               onClick={onAdvance}
               type="button"
             >
@@ -881,7 +1030,7 @@ function ShutdownAssistant({
           ) : null}
           {isPreview ? (
             <button
-              className="h-14 border border-[#4b5f55] bg-transparent px-5 text-base font-semibold text-white hover:bg-[#1f2d27]"
+              className="min-h-12 rounded-[0.8rem] border border-white/20 bg-white/[0.04] px-6 text-base font-semibold text-white transition-colors hover:border-white/30 hover:bg-white/[0.08] min-[360px]:min-h-14"
               onClick={onExitPreview}
               type="button"
             >
@@ -1050,20 +1199,20 @@ function ShutdownReminderSetup({
   return (
     <section
       aria-labelledby="shutdown-reminders-heading"
-      className="border border-[#d8dfda] bg-[#fbfcfb] p-4"
+      className="rounded-2xl border border-white/10 bg-white/[0.045] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2
-            className="text-sm font-semibold text-[#18181b]"
+            className="text-sm font-semibold text-white"
             id="shutdown-reminders-heading"
           >
             Open-app shutdown reminders
           </h2>
-          <p className="mt-1 text-sm text-[#52525b]">{statusText}</p>
+          <p className="mt-1 text-sm leading-5 text-[#9facb7]">{statusText}</p>
         </div>
         <button
-          className="h-11 border border-[#166534] bg-white px-3 text-sm font-semibold text-[#166534] hover:bg-[#f0fdf4] disabled:cursor-not-allowed disabled:border-[#cfd8d1] disabled:text-[#71717a] disabled:hover:bg-white"
+          className="min-h-11 shrink-0 rounded-xl border border-[#71899d] bg-white/[0.05] px-3 text-sm font-semibold text-[#dce7ee] transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.025] disabled:text-[#77838d]"
           disabled={isUnavailable}
           onClick={toggleReminders}
           type="button"
@@ -1091,24 +1240,24 @@ function CompressionBlock({
   title: string;
 }) {
   return (
-    <div className="min-h-40 border border-[#d8dfda] bg-[#fbfcfb] p-4">
+    <div className="inset-panel min-h-40 p-4">
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm font-semibold text-[#18181b]">{title}</h3>
-        <strong className="shrink-0 text-sm text-[#18181b]">
+        <h3 className="text-sm font-semibold text-[#1c252d]">{title}</h3>
+        <strong className="tabular-time shrink-0 rounded-full border border-[#c5ced6] bg-white/70 px-2 py-0.5 text-xs text-[#2b3741]">
           {formatDuration(minutes)}
         </strong>
       </div>
       {tasks.length === 0 ? (
-        <p className="mt-4 text-sm text-[#52525b]">{emptyText}</p>
+        <p className="mt-4 text-sm leading-5 text-[#687581]">{emptyText}</p>
       ) : (
         <ol aria-label={listLabel} className="mt-4 grid gap-2 text-sm">
           {tasks.map((task) => (
             <li
-              className="flex items-center justify-between gap-3 text-[#3f3f46]"
+              className="flex items-start justify-between gap-3 border-t border-[#d5dce2] pt-2 text-[#44515c] first:border-0 first:pt-0"
               key={task.stepId}
             >
-              <span className="min-w-0 truncate">{task.label}</span>
-              <span className="shrink-0 font-semibold text-[#18181b]">
+              <span className="min-w-0 break-words">{task.label}</span>
+              <span className="tabular-time shrink-0 font-semibold text-[#1c252d]">
                 {formatDuration(task.minutes)}
               </span>
             </li>
@@ -1128,14 +1277,14 @@ function DurationControl({
   disabled = false,
 }: DurationControlProps) {
   return (
-    <div className="grid gap-3">
+    <div className="inset-panel grid gap-2 p-3.5">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <label className="text-sm font-medium text-[#3f3f46]" htmlFor={id}>
+        <label className="text-sm font-medium text-[#394550]" htmlFor={id}>
           {label}
         </label>
-        <div className="flex h-12 w-full items-center border border-[#cfd8d1] bg-[#fbfcfb] sm:w-36">
+        <div className="sleepops-control flex h-11 w-full items-center focus-within:border-[#66829a] focus-within:bg-white sm:w-36">
           <input
-            className="h-full min-w-0 flex-1 bg-transparent px-3 text-lg font-semibold text-[#18181b] outline-none focus:bg-white"
+            className="tabular-time h-full min-w-0 flex-1 rounded-l-[0.7rem] bg-transparent px-3 text-lg font-semibold outline-none"
             disabled={disabled}
             id={id}
             max={max}
@@ -1149,12 +1298,12 @@ function DurationControl({
             type="number"
             value={value}
           />
-          <span className="pr-3 text-sm font-medium text-[#52525b]">min</span>
+          <span className="pr-3 text-sm font-medium text-[#687581]">min</span>
         </div>
       </div>
       <input
         aria-label={`${label} slider`}
-        className="h-2 w-full accent-[#166534]"
+        className="sleepops-range w-full"
         disabled={disabled}
         max={max}
         min={0}
@@ -1219,22 +1368,22 @@ function TopLeaks({
 
   if (leaks.length === 0) {
     return (
-      <div className="border border-[#d8dfda] bg-[#fbfcfb] p-3 text-sm text-[#52525b]">
+      <div className="inset-panel p-3.5 text-sm text-[#687581]">
         Top time leaks will appear after you record a day.
       </div>
     );
   }
 
   return (
-    <div className="grid gap-2 border border-[#d8dfda] bg-[#fbfcfb] p-3">
-      <p className="text-sm font-semibold text-[#18181b]">
+    <div className="inset-panel grid gap-2 p-3.5">
+      <p className="text-sm font-semibold text-[#1c252d]">
         Top time leaks (7 days)
       </p>
-      <ol aria-label="Top time leaks" className="grid gap-1 text-sm text-[#3f3f46]">
+      <ol aria-label="Top time leaks" className="grid gap-1.5 text-sm text-[#44515c]">
         {leaks.map((leak) => (
-          <li className="flex items-center justify-between gap-3" key={leak.stepId}>
-            <span className="truncate">{leak.label}</span>
-            <strong className="text-[#18181b]">
+          <li className="flex items-start justify-between gap-3" key={leak.stepId}>
+            <span className="min-w-0 break-words">{leak.label}</span>
+            <strong className="tabular-time shrink-0 text-[#1c252d]">
               {formatDuration(leak.totalMinutes)}
             </strong>
           </li>
