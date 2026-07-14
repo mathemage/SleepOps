@@ -55,6 +55,13 @@ button:not(:disabled) {
   outline-offset: 2px;
 }
 
+@supports not selector(:focus-visible) {
+  :where(button, input, select):focus {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+}
+
 .metal-panel {
   border: 1px solid rgb(174 185 196 / 72%);
   border-radius: 1.5rem;
