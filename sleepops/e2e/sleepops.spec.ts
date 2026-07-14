@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "playwright/test";
+import { expect, test, type Locator, type Page } from "playwright/test";
 
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-05-10T12:00:00Z"));
@@ -20,6 +20,38 @@ test("compiles the default 9-5 sleep contract", async ({ page }) => {
   await expect(page.getByRole("definition").filter({ hasText: "22:15" })).toBeVisible();
   await expect(page.getByText("Free time left today")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Tonight timeline" })).toBeVisible();
+});
+
+test("keeps planning and shutdown controls inside the viewport", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await expect(
+    page.getByRole("heading", { name: "Tonight's shutdown deadline" }),
+  ).toBeVisible();
+  await expectPageToFitViewport(page);
+
+  const workspace = page.getByRole("region", {
+    name: "Sleep planning workspace",
+  });
+  await expect(workspace).toBeVisible();
+  expect(await hasOverlappingControls(workspace)).toBe(false);
+
+  const workStart = page.getByLabel("Work start time");
+  await workStart.focus();
+  await expect(workStart).toBeFocused();
+  await expect(workStart).toHaveCSS("outline-style", "solid");
+
+  await page.getByRole("button", { name: "Preview shutdown mode" }).click();
+
+  const assistant = page.getByRole("region", {
+    name: "Evening shutdown assistant",
+  });
+  await expect(assistant).toBeVisible();
+  await expect(assistant).toContainText(/Action 1 of \d+/);
+  await expectPageToFitViewport(page);
+  expect(await hasOverlappingControls(assistant)).toBe(false);
 });
 
 test("exposes installable PWA manifest metadata and icons", async ({
@@ -726,6 +758,54 @@ async function prepareOfflineAppShell(page: Page) {
           await cache.add(url);
         } catch {}
       }),
+    );
+  });
+}
+
+async function expectPageToFitViewport(page: Page) {
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+      ),
+    )
+    .toBeLessThanOrEqual(1);
+
+  const overflowingControls = await page
+    .locator("button, input, select")
+    .evaluateAll((controls) => {
+      const viewportWidth = document.documentElement.clientWidth;
+
+      return controls.flatMap((control) => {
+        const bounds = control.getBoundingClientRect();
+        const label =
+          control.getAttribute("aria-label") ??
+          control.textContent?.trim() ??
+          control.tagName.toLowerCase();
+
+        return bounds.left < -1 || bounds.right > viewportWidth + 1
+          ? [label]
+          : [];
+      });
+    });
+
+  expect(overflowingControls).toEqual([]);
+}
+
+async function hasOverlappingControls(row: Locator) {
+  return row.locator("button, input, select").evaluateAll((controls) => {
+    const bounds = controls.map((control) => control.getBoundingClientRect());
+
+    return bounds.some((current, index) =>
+      bounds.slice(index + 1).some(
+        (candidate) =>
+          current.left < candidate.right &&
+          current.right > candidate.left &&
+          current.top < candidate.bottom &&
+          current.bottom > candidate.top,
+      ),
     );
   });
 }
