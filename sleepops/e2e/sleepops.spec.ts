@@ -88,6 +88,90 @@ test("exposes installable PWA manifest metadata and icons", async ({
   expect(iconResponse.headers()["content-type"]).toContain("image/png");
 });
 
+test("migrates existing v1 core and profiler data into IndexedDB", async ({
+  page,
+}) => {
+  const coreState = JSON.stringify({
+    version: 1,
+    workStart: "10:00",
+    manualMorningRoutineMinutes: 60,
+    useProfiledMorningRoutine: false,
+    commuteBufferMinutes: 45,
+    shutdownProgressState: {
+      sessionKey: "",
+      completedActions: 0,
+    },
+    shutdownRemindersEnabled: false,
+  });
+  const profilerData = JSON.stringify({
+    steps: [
+      {
+        id: "wake",
+        label: "Wake (boot up)",
+        classification: "required-morning",
+      },
+      {
+        id: "shower",
+        label: "Shower",
+        classification: "movable-evening",
+      },
+    ],
+    days: [
+      {
+        date: "2026-05-10",
+        minutesByStepId: { wake: 23, shower: 17 },
+      },
+    ],
+  });
+
+  await page.addInitScript(
+    ({ coreState, profilerData }) => {
+      window.localStorage.setItem("sleepops.coreState.v1", coreState);
+      window.localStorage.setItem(
+        "sleepops.morningRoutineProfiler.v1",
+        profilerData,
+      );
+    },
+    { coreState, profilerData },
+  );
+
+  await page.goto("/");
+
+  await expect(page.getByLabel("Work start time")).toHaveValue("10:00");
+  await expect(
+    page.getByRole("spinbutton", { name: "Morning routine duration" }),
+  ).toHaveValue("60");
+  await expect(page.getByLabel("Minutes wake")).toHaveValue("23");
+  await expect(page.getByLabel("Classify shower")).toHaveValue(
+    "movable-evening",
+  );
+
+  await expect
+    .poll(() => readSleepOpsStorageDocument(page))
+    .toMatchObject({
+      schemaVersion: 1,
+      records: {
+        coreState,
+        morningRoutineProfiler: profilerData,
+        dailyPlanHistory: null,
+      },
+      migratedV1: {
+        coreState,
+        morningRoutineProfiler: profilerData,
+      },
+    });
+  expect(
+    await page.evaluate(() =>
+      window.localStorage.getItem("sleepops.coreState.v1"),
+    ),
+  ).toBe(coreState);
+  expect(
+    await page.evaluate(() =>
+      window.localStorage.getItem("sleepops.morningRoutineProfiler.v1"),
+    ),
+  ).toBe(profilerData);
+});
+
 test("persists the sleep contract and compressed routine inputs across reloads", async ({
   page,
 }) => {
@@ -101,6 +185,40 @@ test("persists the sleep contract and compressed routine inputs across reloads",
     .getByRole("spinbutton", { name: "Commute / buffer duration" })
     .fill("45");
   await page.getByLabel("Classify shower").selectOption("movable-evening");
+
+  await expect
+    .poll(async () => {
+      const document = await readSleepOpsStorageDocument(page);
+      return {
+        coreState: document?.records.coreState
+          ? JSON.parse(document.records.coreState)
+          : null,
+        profilerData: document?.records.morningRoutineProfiler
+          ? JSON.parse(document.records.morningRoutineProfiler)
+          : null,
+      };
+    })
+    .toMatchObject({
+      coreState: {
+        workStart: "10:00",
+        manualMorningRoutineMinutes: 60,
+        commuteBufferMinutes: 45,
+      },
+      profilerData: {
+        steps: expect.arrayContaining([
+          expect.objectContaining({
+            id: "shower",
+            classification: "movable-evening",
+          }),
+        ]),
+      },
+    });
+
+  await page.evaluate(() => {
+    window.localStorage.removeItem("sleepops.localState.v1");
+    window.localStorage.removeItem("sleepops.coreState.v1");
+    window.localStorage.removeItem("sleepops.morningRoutineProfiler.v1");
+  });
 
   await page.reload();
 
@@ -126,7 +244,23 @@ test("serves the main app shell after simulated offline cache conditions", async
     page.getByRole("heading", { name: "Tonight's shutdown deadline" }),
   ).toBeVisible();
 
+  await page.getByLabel("Work start time").fill("10:00");
+  await expect
+    .poll(async () => {
+      const document = await readSleepOpsStorageDocument(page);
+      return document?.records.coreState
+        ? JSON.parse(document.records.coreState).workStart
+        : null;
+    })
+    .toBe("10:00");
+
   await prepareOfflineAppShell(page);
+
+  await page.evaluate(() => {
+    window.localStorage.removeItem("sleepops.localState.v1");
+    window.localStorage.removeItem("sleepops.coreState.v1");
+    window.localStorage.removeItem("sleepops.morningRoutineProfiler.v1");
+  });
 
   try {
     await context.setOffline(true);
@@ -136,7 +270,8 @@ test("serves the main app shell after simulated offline cache conditions", async
     await expect(
       page.getByRole("heading", { name: "Tonight's shutdown deadline" }),
     ).toBeVisible();
-    await expect(page.getByText("Start shutdown by 21:30")).toBeVisible();
+    await expect(page.getByLabel("Work start time")).toHaveValue("10:00");
+    await expect(page.getByText("Start shutdown by 22:30")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Routine compressor" }))
       .toBeVisible();
   } finally {
@@ -710,6 +845,49 @@ test("keeps the profiler usable when browser storage is unavailable", async ({
     "Wake (boot up)",
   );
 });
+
+type BrowserStorageDocument = {
+  schemaVersion: number;
+  revision: number;
+  records: {
+    coreState: string | null;
+    morningRoutineProfiler: string | null;
+    dailyPlanHistory: string | null;
+  };
+  migratedV1: {
+    coreState: string | null;
+    morningRoutineProfiler: string | null;
+  };
+};
+
+async function readSleepOpsStorageDocument(
+  page: Page,
+): Promise<BrowserStorageDocument | null> {
+  return page.evaluate(
+    () =>
+      new Promise<BrowserStorageDocument | null>((resolve, reject) => {
+        const openRequest = window.indexedDB.open("sleepops", 1);
+        openRequest.onerror = () => reject(openRequest.error);
+        openRequest.onsuccess = () => {
+          const database = openRequest.result;
+          const readRequest = database
+            .transaction("documents", "readonly")
+            .objectStore("documents")
+            .get("sleepops");
+
+          readRequest.onerror = () => reject(readRequest.error);
+          readRequest.onsuccess = () => {
+            database.close();
+            resolve(
+              typeof readRequest.result === "string"
+                ? JSON.parse(readRequest.result)
+                : null,
+            );
+          };
+        };
+      }),
+  );
+}
 
 async function prepareOfflineAppShell(page: Page) {
   await page.evaluate(async () => {
