@@ -9,8 +9,9 @@ task-level record.
 Goal: SleepOps turns one-night planning into a durable daily operating loop.
 
 Milestone 2 should make SleepOps useful across repeated days: remember plans,
-compare planned vs actual behavior, surface risk earlier, and make evening
-guardrails harder to miss.
+compare planned vs actual behavior, surface risk earlier, make evening
+guardrails harder to miss, and feed observed wake times back into tomorrow's
+target.
 
 Planned:
 
@@ -19,6 +20,14 @@ Planned:
   - Track actual shutdown start, lights-out, wake time, and morning launch
     result.
   - Compare planned vs actual sleep and morning duration.
+- Kaizen wake progression
+  - Seed a wake target and record the actual wake time with one tap.
+  - Advance the established target by one 1-minute step per successful day;
+    hold it after a miss.
+  - Never move the target later automatically, and never jump because of one
+    unusually early wake.
+  - Hold progression and show the conflict when the next target would break
+    the required-sleep contract.
 - Tomorrow risk compiler
   - Produce a clear tomorrow risk level: low, medium, high, broken.
   - Base risk on overbooked time, missed shutdown, routine trend, and sleep
@@ -45,6 +54,8 @@ Not planned for this milestone:
 - Auth
 - Google Calendar integration
 - Wearable or sleep-device integration
+- Alarm-clock replacement
+- Gamified streaks, punishment, or aggressive target jumps
 - Complex analytics beyond simple plan-vs-actual trends
 
 Links:
