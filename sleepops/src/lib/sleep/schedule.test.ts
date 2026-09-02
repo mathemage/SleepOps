@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   buildSleepSchedule,
+  clockOffsetMinutes,
   formatClockTime,
   formatDuration,
+  minutesBetweenClockTimes,
   parseClockTime,
 } from "./schedule";
 
@@ -54,6 +56,21 @@ describe("sleep scheduling", () => {
     expect(formatClockTime(24 * 60 + 30)).toBe("00:30");
     expect(formatDuration(750)).toBe("12h 30m");
     expect(formatDuration(-30)).toBe("-30m");
+  });
+
+  it("measures the forward distance between clock times across midnight", () => {
+    expect(minutesBetweenClockTimes("22:15", "07:15")).toBe(540);
+    expect(minutesBetweenClockTimes("00:30", "09:30")).toBe(540);
+    expect(minutesBetweenClockTimes("23:50", "00:10")).toBe(20);
+    expect(minutesBetweenClockTimes("00:10", "23:50")).toBe(1420);
+    expect(minutesBetweenClockTimes("07:15", "07:15")).toBe(0);
+  });
+
+  it("signs clock offsets as early or late across midnight", () => {
+    expect(clockOffsetMinutes("21:30", "21:45")).toBe(15);
+    expect(clockOffsetMinutes("21:45", "21:30")).toBe(-15);
+    expect(clockOffsetMinutes("23:50", "00:10")).toBe(20);
+    expect(clockOffsetMinutes("00:10", "23:50")).toBe(-20);
   });
 
   it("rejects invalid schedule inputs", () => {

@@ -263,7 +263,9 @@ export const initializeSleepOpsStorage = browserStorage.initialize;
 export const readCoreStateSnapshot = browserStorage.getCoreStateSnapshot;
 export const readProfilerDataSnapshot = browserStorage.getProfilerDataSnapshot;
 export const readCoreState = browserStorage.readCoreState;
+export const readDailyPlanHistory = browserStorage.readDailyPlanHistory;
 export const writeCoreState = browserStorage.writeCoreState;
+export const writeDailyPlanHistory = browserStorage.writeDailyPlanHistory;
 export const writeProfilerData = browserStorage.writeProfilerData;
 export const subscribeToProfilerData = browserStorage.subscribeToProfilerData;
 
