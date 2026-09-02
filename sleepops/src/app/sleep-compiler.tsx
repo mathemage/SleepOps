@@ -32,13 +32,19 @@ import {
 import {
   MAX_COMMUTE_BUFFER_MINUTES,
   MAX_MORNING_ROUTINE_MINUTES,
-  SLEEPOPS_STATE_STORAGE_KEY,
   SLEEPOPS_MINUTES_STEP,
   parseSleepOpsCoreState,
   serializeSleepOpsCoreState,
   type SleepOpsCoreState,
 } from "@/lib/pwa/sleepops-state";
-import { readCachedString, writeCachedString } from "@/lib/pwa/storage";
+import {
+  readCoreState,
+  readCoreStateSnapshot,
+  readProfilerDataSnapshot,
+  subscribeToProfilerData,
+  writeCoreState,
+  writeProfilerData,
+} from "@/lib/pwa/storage";
 import {
   addStep,
   compressMorningRoutine,
@@ -61,8 +67,6 @@ import {
 } from "@/lib/routine";
 
 const PROFILER_RETENTION_DAYS = 7;
-const PROFILER_STORAGE_KEY = "sleepops.morningRoutineProfiler.v1";
-const PROFILER_CHANGE_EVENT = "sleepops.morningRoutineProfiler.change";
 const SERVICE_WORKER_SUPPORT_FALLBACK_MS = 5_000;
 const SERVICE_WORKER_READY_CHECK_MS = 1_000;
 const CORE_STATE_WRITE_DEBOUNCE_MS = 250;
@@ -76,11 +80,7 @@ const STEP_CLASSIFICATION_OPTIONS: Array<{
 ];
 
 function readInitialCoreState(): SleepOpsCoreState {
-  if (typeof window === "undefined") {
-    return parseSleepOpsCoreState(null);
-  }
-
-  return parseSleepOpsCoreState(readCachedString(SLEEPOPS_STATE_STORAGE_KEY));
+  return parseSleepOpsCoreState(readCoreStateSnapshot());
 }
 
 export function SleepCompiler() {
@@ -101,6 +101,7 @@ export function SleepCompiler() {
   const [shutdownRemindersEnabled, setShutdownRemindersEnabled] = useState(
     initialCoreState.shutdownRemindersEnabled,
   );
+  const [storageReady, setStorageReady] = useState(false);
   const currentClock = useCurrentClock();
 
   const serializedCoreState = useMemo(
@@ -129,8 +130,35 @@ export function SleepCompiler() {
   }, [serializedCoreState]);
 
   useEffect(() => {
+    let active = true;
+
+    void readCoreState().then((raw) => {
+      if (!active) {
+        return;
+      }
+
+      const storedState = parseSleepOpsCoreState(raw);
+      setWorkStart(storedState.workStart);
+      setManualMorningRoutineMinutes(storedState.manualMorningRoutineMinutes);
+      setUseProfiledMorningRoutine(storedState.useProfiledMorningRoutine);
+      setCommuteBufferMinutes(storedState.commuteBufferMinutes);
+      setShutdownProgressState({ ...storedState.shutdownProgressState });
+      setShutdownRemindersEnabled(storedState.shutdownRemindersEnabled);
+      setStorageReady(true);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!storageReady) {
+      return;
+    }
+
     const persistCoreState = () => {
-      writeCachedString(SLEEPOPS_STATE_STORAGE_KEY, serializedCoreState);
+      void writeCoreState(serializedCoreState);
     };
 
     const timeoutId = window.setTimeout(
@@ -141,14 +169,15 @@ export function SleepCompiler() {
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [serializedCoreState]);
+  }, [serializedCoreState, storageReady]);
 
   useEffect(() => {
+    if (!storageReady) {
+      return;
+    }
+
     const persistLatestCoreState = () => {
-      writeCachedString(
-        SLEEPOPS_STATE_STORAGE_KEY,
-        latestSerializedCoreState.current,
-      );
+      void writeCoreState(latestSerializedCoreState.current);
     };
 
     window.addEventListener("pagehide", persistLatestCoreState);
@@ -156,7 +185,7 @@ export function SleepCompiler() {
     return () => {
       window.removeEventListener("pagehide", persistLatestCoreState);
     };
-  }, []);
+  }, [storageReady]);
 
   const { recordDateKey, retainedStartKey, setRecordDateKey, todayKey } =
     useProfilerDateKeys();
@@ -318,7 +347,7 @@ export function SleepCompiler() {
     setShutdownProgressState({ sessionKey: "", completedActions: 0 });
   };
 
-  if (currentClock === null) {
+  if (!storageReady || currentClock === null) {
     return <SleepOpsLoading />;
   }
 
@@ -1754,31 +1783,15 @@ function useMorningRoutineProfiler(todayKey: string | null) {
 }
 
 function readProfilerSnapshot(): string | null {
-  return readCachedString(PROFILER_STORAGE_KEY);
+  return readProfilerDataSnapshot();
 }
 
 function writeProfilerSnapshot(raw: string) {
-  writeCachedString(PROFILER_STORAGE_KEY, raw);
-
-  try {
-    globalThis.dispatchEvent(new Event(PROFILER_CHANGE_EVENT));
-  } catch {
-    // Rendering should not depend on custom event delivery.
-  }
+  void writeProfilerData(raw);
 }
 
 function subscribeToProfilerStore(callback: () => void) {
-  if (!("addEventListener" in globalThis)) {
-    return () => {};
-  }
-
-  const handler = () => callback();
-  globalThis.addEventListener("storage", handler);
-  globalThis.addEventListener(PROFILER_CHANGE_EVENT, handler);
-  return () => {
-    globalThis.removeEventListener("storage", handler);
-    globalThis.removeEventListener(PROFILER_CHANGE_EVENT, handler);
-  };
+  return subscribeToProfilerData(callback);
 }
 
 function hydrateProfiler(
