@@ -73,6 +73,11 @@ describe("sleep scheduling", () => {
     expect(clockOffsetMinutes("00:10", "23:50")).toBe(-20);
   });
 
+  it("resolves a half-day offset as late in both directions", () => {
+    expect(clockOffsetMinutes("21:30", "09:30")).toBe(720);
+    expect(clockOffsetMinutes("09:30", "21:30")).toBe(720);
+  });
+
   it("rejects invalid schedule inputs", () => {
     expect(() => parseClockTime("24:00")).toThrow(RangeError);
     expect(() =>
