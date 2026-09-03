@@ -49,6 +49,7 @@ export type DailyPlanComparison = {
   plannedSleepMinutes: number;
   actualSleepMinutes: number | null;
   sleepDeltaMinutes: number | null;
+  // Morning minutes run to the planned work start, so the delta tracks wake drift only.
   plannedMorningMinutes: number;
   actualMorningMinutes: number | null;
   morningDeltaMinutes: number | null;
