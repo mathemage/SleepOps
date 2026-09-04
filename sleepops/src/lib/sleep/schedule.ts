@@ -78,6 +78,21 @@ export function parseClockTime(value: string): number {
   return Number(match[1]) * 60 + Number(match[2]);
 }
 
+export function minutesBetweenClockTimes(from: string, to: string): number {
+  const fromMinutes = parseClockTime(from);
+  const toMinutes = parseClockTime(to);
+
+  return (toMinutes - fromMinutes + DAY_MINUTES) % DAY_MINUTES;
+}
+
+export function clockOffsetMinutes(reference: string, actual: string): number {
+  const forwardMinutes = minutesBetweenClockTimes(reference, actual);
+
+  return forwardMinutes > DAY_MINUTES / 2
+    ? forwardMinutes - DAY_MINUTES
+    : forwardMinutes;
+}
+
 export function formatClockTime(totalMinutes: number): string {
   const normalizedMinutes =
     ((totalMinutes % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;

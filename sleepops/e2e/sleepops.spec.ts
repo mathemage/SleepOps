@@ -846,6 +846,103 @@ test("keeps the profiler usable when browser storage is unavailable", async ({
   );
 });
 
+test("saves tonight's plan, records actuals, and keeps the comparison across reloads", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await expect(
+    page.getByText(
+      "No saved nights yet. Save tonight's plan to start the history.",
+    ),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Save tonight's plan" }).click();
+
+  const night = page.getByRole("group", { name: "Night 2026-05-10" });
+  await expect(night).toContainText(
+    "Plan 21:30 shutdown, 22:15 lights out, 07:15 wake, 09:00 work",
+  );
+
+  await night.getByLabel("Actual shutdown").fill("21:45");
+  await night.getByLabel("Actual lights out").fill("22:40");
+  await night.getByLabel("Actual wake").fill("07:05");
+  await night.getByLabel("Morning launch").selectOption("late");
+
+  await expect(night).toContainText(
+    "Sleep 8h 25m of 9h (-35m), morning 1h 55m of 1h 45m (+10m), shutdown 15m late.",
+  );
+
+  await expect
+    .poll(async () => {
+      const document = await readSleepOpsStorageDocument(page);
+      return document?.records.dailyPlanHistory
+        ? JSON.parse(document.records.dailyPlanHistory)
+        : null;
+    })
+    .toMatchObject({
+      version: 1,
+      days: [
+        {
+          date: "2026-05-10",
+          plan: {
+            workStart: "09:00",
+            requiredSleepMinutes: 540,
+            morningRoutineMinutes: 75,
+            morningRoutineSource: "manual",
+            commuteBufferMinutes: 30,
+            wakeTime: "07:15",
+            lightsOutTime: "22:15",
+            shutdownStartTime: "21:30",
+            shutdownMinutes: 45,
+          },
+          actuals: {
+            shutdownStartTime: "21:45",
+            lightsOutTime: "22:40",
+            wakeTime: "07:05",
+            morningLaunch: "late",
+          },
+        },
+      ],
+    });
+
+  await page.reload();
+
+  const reloadedNight = page.getByRole("group", { name: "Night 2026-05-10" });
+  await expect(reloadedNight.getByLabel("Actual shutdown")).toHaveValue("21:45");
+  await expect(reloadedNight.getByLabel("Actual lights out")).toHaveValue(
+    "22:40",
+  );
+  await expect(reloadedNight.getByLabel("Actual wake")).toHaveValue("07:05");
+  await expect(reloadedNight.getByLabel("Morning launch")).toHaveValue("late");
+  await expect(reloadedNight).toContainText(
+    "Sleep 8h 25m of 9h (-35m), morning 1h 55m of 1h 45m (+10m), shutdown 15m late.",
+  );
+});
+
+test("compares actual sleep for a plan whose lights-out falls after midnight", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await page.getByLabel("Work start time").fill("12:00");
+  await expect(page.getByText("Start shutdown by 00:30")).toBeVisible();
+
+  await page.getByRole("button", { name: "Save tonight's plan" }).click();
+
+  const night = page.getByRole("group", { name: "Night 2026-05-10" });
+  await expect(night).toContainText(
+    "Plan 00:30 shutdown, 01:15 lights out, 10:15 wake, 12:00 work",
+  );
+
+  await night.getByLabel("Actual lights out").fill("01:40");
+  await night.getByLabel("Actual wake").fill("10:00");
+
+  await expect(night).toContainText(
+    "Sleep 8h 20m of 9h (-40m), morning 2h of 1h 45m (+15m), shutdown not recorded.",
+  );
+});
+
 type BrowserStorageDocument = {
   schemaVersion: number;
   revision: number;

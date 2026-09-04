@@ -40,11 +40,27 @@ import {
 import {
   readCoreState,
   readCoreStateSnapshot,
+  readDailyPlanHistory,
   readProfilerDataSnapshot,
   subscribeToProfilerData,
   writeCoreState,
+  writeDailyPlanHistory,
   writeProfilerData,
 } from "@/lib/pwa/storage";
+import {
+  DAILY_PLAN_HISTORY_LIMIT,
+  compareDailyPlan,
+  createDailyPlanRecord,
+  parseDailyPlanHistory,
+  planNightDateKey,
+  recordDailyPlanActuals,
+  saveDailyPlan,
+  serializeDailyPlanHistory,
+  type DailyPlanActualsInput,
+  type DailyPlanComparison,
+  type DailyPlanRecord,
+  type MorningLaunchResult,
+} from "@/lib/history";
 import {
   addStep,
   compressMorningRoutine,
@@ -78,6 +94,14 @@ const STEP_CLASSIFICATION_OPTIONS: Array<{
   { value: "movable-evening", label: "Move to evening" },
   { value: "decision-setup", label: "Prep tonight" },
 ];
+const MORNING_LAUNCH_OPTIONS: Array<{
+  value: MorningLaunchResult;
+  label: string;
+}> = [
+  { value: "on-time", label: "On time" },
+  { value: "late", label: "Late" },
+  { value: "missed", label: "Missed" },
+];
 
 function readInitialCoreState(): SleepOpsCoreState {
   return parseSleepOpsCoreState(readCoreStateSnapshot());
@@ -102,6 +126,9 @@ export function SleepCompiler() {
     initialCoreState.shutdownRemindersEnabled,
   );
   const [storageReady, setStorageReady] = useState(false);
+  const [dailyPlanHistory, setDailyPlanHistory] = useState<DailyPlanRecord[]>(
+    [],
+  );
   const currentClock = useCurrentClock();
 
   const serializedCoreState = useMemo(
@@ -132,20 +159,23 @@ export function SleepCompiler() {
   useEffect(() => {
     let active = true;
 
-    void readCoreState().then((raw) => {
-      if (!active) {
-        return;
-      }
+    void Promise.all([readCoreState(), readDailyPlanHistory()]).then(
+      ([rawCoreState, rawDailyPlanHistory]) => {
+        if (!active) {
+          return;
+        }
 
-      const storedState = parseSleepOpsCoreState(raw);
-      setWorkStart(storedState.workStart);
-      setManualMorningRoutineMinutes(storedState.manualMorningRoutineMinutes);
-      setUseProfiledMorningRoutine(storedState.useProfiledMorningRoutine);
-      setCommuteBufferMinutes(storedState.commuteBufferMinutes);
-      setShutdownProgressState({ ...storedState.shutdownProgressState });
-      setShutdownRemindersEnabled(storedState.shutdownRemindersEnabled);
-      setStorageReady(true);
-    });
+        const storedState = parseSleepOpsCoreState(rawCoreState);
+        setWorkStart(storedState.workStart);
+        setManualMorningRoutineMinutes(storedState.manualMorningRoutineMinutes);
+        setUseProfiledMorningRoutine(storedState.useProfiledMorningRoutine);
+        setCommuteBufferMinutes(storedState.commuteBufferMinutes);
+        setShutdownProgressState({ ...storedState.shutdownProgressState });
+        setShutdownRemindersEnabled(storedState.shutdownRemindersEnabled);
+        setDailyPlanHistory(parseDailyPlanHistory(rawDailyPlanHistory));
+        setStorageReady(true);
+      },
+    );
 
     return () => {
       active = false;
@@ -377,6 +407,38 @@ export function SleepCompiler() {
       />
     );
   }
+
+  const planNightKey = planNightDateKey({
+    currentTime: currentClock.time,
+    dateKey: currentClock.dateKey,
+    previousDateKey: currentClock.previousDateKey,
+    wakeTime: schedule.wakeTime,
+  });
+
+  const updateDailyPlanHistory = (nextHistory: DailyPlanRecord[]) => {
+    setDailyPlanHistory(nextHistory);
+    void writeDailyPlanHistory(serializeDailyPlanHistory(nextHistory));
+  };
+
+  const saveTonightsPlan = () => {
+    updateDailyPlanHistory(
+      saveDailyPlan(
+        dailyPlanHistory,
+        createDailyPlanRecord({
+          date: planNightKey,
+          morningRoutineSource:
+            useProfiledMorningRoutine && canUseProfiled ? "profiled" : "manual",
+          schedule,
+        }),
+      ),
+    );
+  };
+
+  const recordNightActuals = (date: string, input: DailyPlanActualsInput) => {
+    updateDailyPlanHistory(
+      recordDailyPlanActuals(dailyPlanHistory, date, input),
+    );
+  };
 
   const results = [
     {
@@ -913,6 +975,12 @@ export function SleepCompiler() {
               ))}
             </div>
           </section>
+
+          <DailyPlanHistory
+            onRecordActuals={recordNightActuals}
+            onSavePlan={saveTonightsPlan}
+            records={dailyPlanHistory}
+          />
         </section>
       </div>
     </main>
@@ -1253,6 +1321,203 @@ function ShutdownReminderSetup({
       </div>
     </section>
   );
+}
+
+function DailyPlanHistory({
+  onRecordActuals,
+  onSavePlan,
+  records,
+}: {
+  onRecordActuals: (date: string, input: DailyPlanActualsInput) => void;
+  onSavePlan: () => void;
+  records: DailyPlanRecord[];
+}) {
+  return (
+    <section
+      aria-labelledby="daily-plan-history-heading"
+      className="metal-panel p-5 sm:p-6"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#596976]">
+            Daily loop
+          </p>
+          <h2
+            className="mt-1 text-2xl font-semibold tracking-[-0.03em] text-[#151d24]"
+            id="daily-plan-history-heading"
+          >
+            Daily plan history
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#687581]">
+            Save tonight&apos;s compiled plan, then record what actually
+            happened. Keeps the last {DAILY_PLAN_HISTORY_LIMIT} nights locally.
+          </p>
+        </div>
+        <button
+          className="button-primary min-h-12 shrink-0 px-4 text-sm font-semibold"
+          onClick={onSavePlan}
+          type="button"
+        >
+          Save tonight&apos;s plan
+        </button>
+      </div>
+
+      {records.length === 0 ? (
+        <p className="inset-panel mt-5 p-3.5 text-sm text-[#687581]">
+          No saved nights yet. Save tonight&apos;s plan to start the history.
+        </p>
+      ) : (
+        <div className="mt-5 grid gap-2">
+          {records.map((record) => (
+            <DailyPlanHistoryRow
+              key={record.date}
+              onRecordActuals={onRecordActuals}
+              record={record}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DailyPlanHistoryRow({
+  onRecordActuals,
+  record,
+}: {
+  onRecordActuals: (date: string, input: DailyPlanActualsInput) => void;
+  record: DailyPlanRecord;
+}) {
+  return (
+    <div
+      aria-label={`Night ${record.date}`}
+      className="inset-panel grid gap-2.5 p-3"
+      role="group"
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <p className="text-sm font-semibold text-[#1c252d]">
+          Night {record.date}
+        </p>
+        <p className="tabular-time text-xs text-[#687581]">
+          Plan {record.plan.shutdownStartTime} shutdown,{" "}
+          {record.plan.lightsOutTime} lights out, {record.plan.wakeTime} wake,{" "}
+          {record.plan.workStart} work
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <ActualTimeField
+          label="Actual shutdown"
+          onChange={(value) =>
+            onRecordActuals(record.date, { shutdownStartTime: value })
+          }
+          value={record.actuals.shutdownStartTime}
+        />
+        <ActualTimeField
+          label="Actual lights out"
+          onChange={(value) =>
+            onRecordActuals(record.date, { lightsOutTime: value })
+          }
+          value={record.actuals.lightsOutTime}
+        />
+        <ActualTimeField
+          label="Actual wake"
+          onChange={(value) => onRecordActuals(record.date, { wakeTime: value })}
+          value={record.actuals.wakeTime}
+        />
+        <label className="grid gap-1 text-xs font-medium text-[#44515c]">
+          Morning launch
+          <select
+            className="sleepops-control h-10 w-full min-w-0 px-2 text-sm font-semibold"
+            onChange={(event) =>
+              onRecordActuals(record.date, {
+                morningLaunch: event.currentTarget.value,
+              })
+            }
+            value={record.actuals.morningLaunch ?? ""}
+          >
+            <option value="">Not recorded</option>
+            {MORNING_LAUNCH_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <p className="text-xs leading-5 text-[#44515c]">
+        {formatDailyPlanComparison(compareDailyPlan(record))}
+      </p>
+    </div>
+  );
+}
+
+function ActualTimeField({
+  label,
+  onChange,
+  value,
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  value: string | null;
+}) {
+  return (
+    <label className="grid gap-1 text-xs font-medium text-[#44515c]">
+      {label}
+      <input
+        className="sleepops-control tabular-time h-10 w-full min-w-0 px-2 text-sm font-semibold"
+        onChange={(event) => onChange(event.currentTarget.value)}
+        type="time"
+        value={value ?? ""}
+      />
+    </label>
+  );
+}
+
+function formatDailyPlanComparison(comparison: DailyPlanComparison): string {
+  const sleep =
+    comparison.actualSleepMinutes === null ||
+    comparison.sleepDeltaMinutes === null
+      ? `Sleep planned ${formatDuration(comparison.plannedSleepMinutes)}`
+      : `Sleep ${formatDuration(
+          comparison.actualSleepMinutes,
+        )} of ${formatDuration(
+          comparison.plannedSleepMinutes,
+        )} (${formatDeltaMinutes(comparison.sleepDeltaMinutes)})`;
+  const morning =
+    comparison.actualMorningMinutes === null ||
+    comparison.morningDeltaMinutes === null
+      ? `morning planned ${formatDuration(comparison.plannedMorningMinutes)}`
+      : `morning ${formatDuration(
+          comparison.actualMorningMinutes,
+        )} of ${formatDuration(
+          comparison.plannedMorningMinutes,
+        )} (${formatDeltaMinutes(comparison.morningDeltaMinutes)})`;
+
+  return `${sleep}, ${morning}, ${formatShutdownComparison(
+    comparison.shutdownDeltaMinutes,
+  )}.`;
+}
+
+function formatShutdownComparison(deltaMinutes: number | null): string {
+  if (deltaMinutes === null) {
+    return "shutdown not recorded";
+  }
+
+  if (deltaMinutes > 0) {
+    return `shutdown ${formatDuration(deltaMinutes)} late`;
+  }
+
+  if (deltaMinutes < 0) {
+    return `shutdown ${formatDuration(-deltaMinutes)} early`;
+  }
+
+  return "shutdown on time";
+}
+
+function formatDeltaMinutes(minutes: number): string {
+  return minutes > 0 ? `+${formatDuration(minutes)}` : formatDuration(minutes);
 }
 
 function CompressionBlock({
