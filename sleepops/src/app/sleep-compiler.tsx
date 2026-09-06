@@ -327,6 +327,7 @@ export function SleepCompiler() {
   const kaizenContract: KaizenWakeContract = {
     workStart: schedule.workStart,
     shutdownMinutes: schedule.shutdownMinutes,
+    requiredSleepMinutes: schedule.requiredSleepMinutes,
   };
   const actualWakeForNight = (night: string) =>
     dailyPlanHistory.find((record) => record.date === night)?.actuals.wakeTime ??

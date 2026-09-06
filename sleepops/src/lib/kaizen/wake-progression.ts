@@ -16,6 +16,7 @@ export const KAIZEN_WAKE_HISTORY_LIMIT = 7;
 export type KaizenWakeContract = {
   workStart: string;
   shutdownMinutes: number;
+  requiredSleepMinutes: number;
 };
 
 export type KaizenResolvedMorning = {
@@ -76,8 +77,9 @@ export function isKaizenMorningActive(
 }
 
 /**
- * Compiles the plan a wake target implies: the same 9h contract, paid for with an
- * equally earlier lights-out and shutdown rather than with less sleep.
+ * Compiles the plan a wake target implies: the required sleep the day was compiled
+ * with, paid for with an equally earlier lights-out and shutdown rather than with
+ * a shorter night.
  */
 export function buildKaizenWakePlan(
   target: string,
@@ -88,6 +90,7 @@ export function buildKaizenWakePlan(
     morningRoutineMinutes: minutesBetweenClockTimes(target, contract.workStart),
     commuteBufferMinutes: 0,
     shutdownMinutes: contract.shutdownMinutes,
+    requiredSleepMinutes: contract.requiredSleepMinutes,
   });
 }
 

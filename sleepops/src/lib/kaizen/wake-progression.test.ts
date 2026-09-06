@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { REQUIRED_SLEEP_MINUTES } from "../sleep";
 import {
   KAIZEN_WAKE_HISTORY_LIMIT,
   advanceKaizenWakeState,
@@ -14,6 +15,7 @@ import {
 const CONTRACT: KaizenWakeContract = {
   workStart: "09:00",
   shutdownMinutes: 45,
+  requiredSleepMinutes: REQUIRED_SLEEP_MINUTES,
 };
 
 function evaluate(target: string, actualWake: string | null) {
@@ -125,6 +127,16 @@ describe("Kaizen wake progression", () => {
       status: "success",
       nextTarget: "18:45",
       conflict: null,
+    });
+  });
+
+  it("compiles the target against the required sleep the day was compiled with", () => {
+    const shortNight = { ...CONTRACT, requiredSleepMinutes: 8 * 60 };
+
+    expect(buildKaizenWakePlan("07:15", shortNight)).toMatchObject({
+      wakeTime: "07:15",
+      latestBedtime: "23:15",
+      requiredSleepMinutes: 480,
     });
   });
 });
