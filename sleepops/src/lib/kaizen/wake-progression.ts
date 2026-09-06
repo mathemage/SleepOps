@@ -32,6 +32,12 @@ export type KaizenWakeState = {
 
 export type KaizenWakeStatus = "pending" | "success" | "held" | "blocked";
 
+export type KaizenMorningWindow = {
+  target: string;
+  endTime: string;
+  morningMinutes: number;
+};
+
 export type KaizenWakeOutcome = {
   status: KaizenWakeStatus;
   target: string;
@@ -41,6 +47,33 @@ export type KaizenWakeOutcome = {
   nextPlan: SleepSchedule;
   conflict: string | null;
 };
+
+/**
+ * The stretch the morning screen owns: the target, plus the morning block the
+ * schedule already budgets between waking and work.
+ */
+export function buildKaizenMorningWindow({
+  morningMinutes,
+  target,
+}: {
+  morningMinutes: number;
+  target: string;
+}): KaizenMorningWindow {
+  return {
+    target,
+    endTime: formatClockTime(parseClockTime(target) + morningMinutes),
+    morningMinutes,
+  };
+}
+
+export function isKaizenMorningActive(
+  window: KaizenMorningWindow,
+  currentTime: string,
+): boolean {
+  return (
+    minutesBetweenClockTimes(window.target, currentTime) < window.morningMinutes
+  );
+}
 
 /**
  * Compiles the plan a wake target implies: the same 9h contract, paid for with an

@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   KAIZEN_WAKE_HISTORY_LIMIT,
   advanceKaizenWakeState,
+  buildKaizenMorningWindow,
   buildKaizenWakePlan,
   evaluateKaizenWake,
+  isKaizenMorningActive,
   normalizeKaizenWakeState,
   seedKaizenWakeState,
   type KaizenWakeContract,
@@ -114,6 +116,39 @@ describe("Kaizen wake progression", () => {
       nextTarget: "18:45",
       conflict: null,
     });
+  });
+});
+
+describe("Kaizen morning window", () => {
+  const window = buildKaizenMorningWindow({
+    morningMinutes: 105,
+    target: "07:15",
+  });
+
+  it("runs from the target across the budgeted morning block", () => {
+    expect(window.endTime).toBe("09:00");
+    expect(isKaizenMorningActive(window, "07:15")).toBe(true);
+    expect(isKaizenMorningActive(window, "07:35")).toBe(true);
+    expect(isKaizenMorningActive(window, "08:59")).toBe(true);
+  });
+
+  it("stays closed before the target and after the morning block", () => {
+    expect(isKaizenMorningActive(window, "07:14")).toBe(false);
+    expect(isKaizenMorningActive(window, "09:00")).toBe(false);
+    expect(isKaizenMorningActive(window, "22:00")).toBe(false);
+  });
+
+  it("stays correct for a morning that starts before midnight", () => {
+    const crossing = buildKaizenMorningWindow({
+      morningMinutes: 105,
+      target: "23:40",
+    });
+
+    expect(crossing.endTime).toBe("01:25");
+    expect(isKaizenMorningActive(crossing, "23:50")).toBe(true);
+    expect(isKaizenMorningActive(crossing, "00:30")).toBe(true);
+    expect(isKaizenMorningActive(crossing, "01:25")).toBe(false);
+    expect(isKaizenMorningActive(crossing, "23:39")).toBe(false);
   });
 });
 

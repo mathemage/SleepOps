@@ -973,7 +973,7 @@ test("records the morning wake with one tap and moves tomorrow's target one minu
   );
 
   await kaizen.getByLabel("Wake target").fill("07:15");
-  await expect(kaizen).toContainText("Today's target");
+  await expect(kaizen).toContainText("Tomorrow's morning");
   await expect(kaizen.getByText("07:15", { exact: true })).toBeVisible();
 
   await kaizen.getByRole("button", { name: "I'm up" }).click();
@@ -1000,7 +1000,7 @@ test("records the morning wake with one tap and moves tomorrow's target one minu
   await expect(kaizen).toContainText("2026-05-10: target 07:15, actual 07:10");
 });
 
-test("holds the wake target after a late morning and accepts a correction", async ({
+test("takes over the screen during the morning window and hands back to planning", async ({
   page,
 }) => {
   await page.clock.setFixedTime(new Date("2026-05-10T07:35:00Z"));
@@ -1010,16 +1010,38 @@ test("holds the wake target after a late morning and accepts a correction", asyn
     name: "Kaizen wake progression",
   });
   await kaizen.getByLabel("Wake target").fill("07:15");
-  await kaizen.getByRole("button", { name: "I'm up" }).click();
 
-  await expect(kaizen.getByLabel("Recorded wake")).toHaveValue("07:35");
-  await expect(kaizen).toContainText("Target held - retry tomorrow.");
-  await expect(kaizen).toContainText("Tomorrow 07:15");
+  const morning = page.getByRole("region", { name: "Morning launch" });
+  await expect(morning).toBeVisible();
+  await expect(morning).toContainText("Morning 07:15-09:00");
+  await expect(morning).toContainText("Today's target");
+  await expect(
+    page.getByRole("heading", { name: "07:15", level: 1 }),
+  ).toBeVisible();
 
-  await kaizen.getByLabel("Recorded wake").fill("07:05");
+  await morning.getByRole("button", { name: "I'm up" }).click();
 
+  await expect(morning.getByLabel("Recorded wake")).toHaveValue("07:35");
+  await expect(morning).toContainText("Target held - retry tomorrow.");
+  await expect(morning).toContainText("Tomorrow 07:15");
+
+  await morning.getByLabel("Recorded wake").fill("07:05");
+
+  await expect(morning).toContainText("Success - tomorrow 1 min earlier.");
+  await expect(morning).toContainText("Tomorrow 07:14");
+
+  await morning.getByRole("button", { name: "Back to planning" }).click();
+
+  await expect(morning).toBeHidden();
+  await expect(
+    page.getByRole("heading", { name: "Tonight's shutdown deadline" }),
+  ).toBeVisible();
+  await expect(kaizen.getByLabel("Recorded wake")).toHaveValue("07:05");
   await expect(kaizen).toContainText("Success - tomorrow 1 min earlier.");
-  await expect(kaizen).toContainText("Tomorrow 07:14");
+
+  await page.reload();
+
+  await expect(page.getByRole("region", { name: "Morning launch" })).toBeVisible();
 });
 
 test("holds progression when the next wake target breaks the sleep contract", async ({

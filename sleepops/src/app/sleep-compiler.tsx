@@ -50,8 +50,11 @@ import {
 import {
   KAIZEN_STEP_MINUTES,
   advanceKaizenWakeState,
+  buildKaizenMorningWindow,
   evaluateKaizenWake,
+  isKaizenMorningActive,
   seedKaizenWakeState,
+  type KaizenMorningWindow,
   type KaizenWakeContract,
   type KaizenWakeOutcome,
   type KaizenWakeState,
@@ -145,6 +148,7 @@ export function SleepCompiler() {
   const [kaizenWake, setKaizenWake] = useState<KaizenWakeState | null>(
     initialCoreState.kaizenWake,
   );
+  const [morningLaunchClosed, setMorningLaunchClosed] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
   const [dailyPlanHistory, setDailyPlanHistory] = useState<DailyPlanRecord[]>(
     [],
@@ -516,6 +520,31 @@ export function SleepCompiler() {
     );
   };
 
+  const morningWindow = kaizenState
+    ? buildKaizenMorningWindow({
+        morningMinutes:
+          schedule.morningRoutineMinutes + schedule.commuteBufferMinutes,
+        target: kaizenState.target,
+      })
+    : null;
+
+  if (
+    kaizenOutcome &&
+    morningWindow &&
+    !morningLaunchClosed &&
+    isKaizenMorningActive(morningWindow, currentClock.time)
+  ) {
+    return (
+      <MorningLaunch
+        onCorrectWake={recordActualWake}
+        onLeave={() => setMorningLaunchClosed(true)}
+        onRecordWakeNow={() => recordActualWake(readCurrentClock().time)}
+        outcome={kaizenOutcome}
+        window={morningWindow}
+      />
+    );
+  }
+
   const recordNightActuals = (date: string, input: DailyPlanActualsInput) => {
     updateDailyPlanHistory(
       recordDailyPlanActuals(dailyPlanHistory, date, input),
@@ -637,6 +666,15 @@ export function SleepCompiler() {
                   : `Start shutdown by ${schedule.shutdownStartTime}`}
               </p>
             </div>
+
+            <KaizenWakeProgression
+              onCorrectWake={recordActualWake}
+              onRecordWakeNow={() => recordActualWake(readCurrentClock().time)}
+              onSeedTarget={seedKaizenTarget}
+              outcome={kaizenOutcome}
+              resolvedMornings={kaizenResolvedMornings}
+              state={kaizenState}
+            />
 
             <button
               className="button-inverse flex min-h-12 w-full items-center justify-center gap-2 whitespace-nowrap px-4 text-sm font-semibold min-[360px]:gap-3 min-[360px]:px-5 sm:w-auto"
@@ -1058,15 +1096,6 @@ export function SleepCompiler() {
             </div>
           </section>
 
-          <KaizenWakeProgression
-            onCorrectWake={recordActualWake}
-            onRecordWakeNow={() => recordActualWake(readCurrentClock().time)}
-            onSeedTarget={seedKaizenTarget}
-            outcome={kaizenOutcome}
-            resolvedMornings={kaizenResolvedMornings}
-            state={kaizenState}
-          />
-
           <DailyPlanHistory
             onRecordActuals={recordNightActuals}
             onSavePlan={saveTonightsPlan}
@@ -1435,30 +1464,22 @@ function KaizenWakeProgression({
 }) {
   return (
     <section
-      aria-labelledby="kaizen-wake-heading"
-      className="metal-panel p-5 sm:p-6"
+      aria-label="Kaizen wake progression"
+      className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:p-5"
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#596976]">
-            Daily loop
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9facb7]">
+            Tomorrow&apos;s morning
           </p>
-          <h2
-            className="mt-1 text-2xl font-semibold tracking-[-0.03em] text-[#151d24]"
-            id="kaizen-wake-heading"
-          >
-            Kaizen wake progression
-          </h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#687581]">
-            Waking at or before the target moves it {KAIZEN_STEP_MINUTES} minute
-            earlier tomorrow. A later morning holds the target where it is.
-            Lights out and shutdown move earlier with it, never the sleep.
+          <p className="tabular-time mt-2 text-3xl font-semibold leading-none tracking-[-0.035em] text-white">
+            {state?.target ?? "--:--"}
           </p>
         </div>
-        <label className="grid w-fit gap-1 text-xs font-medium text-[#44515c]">
+        <label className="grid gap-1 text-[0.7rem] font-medium text-[#9facb7]">
           Wake target
           <input
-            className="sleepops-control tabular-time h-10 w-full min-w-0 px-2 text-sm font-semibold"
+            className="sleepops-control-inverse tabular-time h-10 w-full min-w-0 px-2 text-sm font-semibold"
             onChange={(event) => onSeedTarget(event.currentTarget.value)}
             type="time"
             value={state?.target ?? ""}
@@ -1467,52 +1488,42 @@ function KaizenWakeProgression({
       </div>
 
       {state === null || outcome === null ? (
-        <p className="inset-panel mt-5 p-3.5 text-sm text-[#687581]">
-          Seed a wake target to start the progression.
+        <p className="mt-3 text-sm leading-6 text-[#aeb9c3]">
+          Seed a wake target to start the progression. Waking at or before it
+          moves the target {KAIZEN_STEP_MINUTES} minute earlier the next day.
         </p>
       ) : (
-        <div className="mt-5 grid gap-3">
-          <div className="inset-panel grid gap-3 p-3.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-center">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#495661]">
-                Today&apos;s target
-              </p>
-              <p className="tabular-time mt-2 text-4xl font-semibold text-[#151d24]">
-                {state.target}
-              </p>
-            </div>
-            <button
-              className="button-primary min-h-16 w-full px-4 text-lg font-semibold"
-              onClick={onRecordWakeNow}
-              type="button"
-            >
+        <div className="mt-4 grid gap-3">
+          <button
+            className="button-inverse min-h-14 w-full px-4"
+            onClick={onRecordWakeNow}
+            type="button"
+          >
+            <span className="text-xl font-semibold tracking-[-0.02em]">
               I&apos;m up
-            </button>
-          </div>
+            </span>
+          </button>
 
-          <div className="grid gap-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-start">
-            <label className="grid gap-1 text-xs font-medium text-[#44515c]">
+          <div className="grid gap-3 min-[360px]:grid-cols-[7.5rem_minmax(0,1fr)] min-[360px]:items-start">
+            <label className="grid gap-1 text-[0.7rem] font-medium text-[#9facb7]">
               Recorded wake
               <input
-                className="sleepops-control tabular-time h-10 w-full min-w-0 px-2 text-sm font-semibold"
+                className="sleepops-control-inverse tabular-time h-10 w-full min-w-0 px-2 text-sm font-semibold"
                 onChange={(event) => onCorrectWake(event.currentTarget.value)}
                 type="time"
                 value={outcome.actualWake ?? ""}
               />
             </label>
-            <div className="grid gap-1.5">
-              <p
-                className="text-sm font-semibold text-[#1c252d]"
-                role="status"
-              >
+            <div className="grid gap-1">
+              <p className="text-sm font-semibold text-white" role="status">
                 {KAIZEN_STATUS_TEXT[outcome.status]}
               </p>
-              <p className="tabular-time text-xs leading-5 text-[#44515c]">
+              <p className="tabular-time text-xs leading-5 text-[#9facb7]">
                 Tomorrow {outcome.nextTarget}, lights out{" "}
                 {outcome.nextPlan.latestBedtime}, shutdown{" "}
                 {outcome.nextPlan.shutdownStartTime}
               </p>
-              <p className="text-xs leading-5 text-[#687581]">
+              <p className="text-xs leading-5 text-[#8794a0]">
                 Step {KAIZEN_STEP_MINUTES} min per successful day
               </p>
             </div>
@@ -1520,7 +1531,7 @@ function KaizenWakeProgression({
 
           {outcome.conflict === null ? null : (
             <p
-              className="rounded-2xl border border-[#d6b391] bg-[#f5e7da] p-3.5 text-sm leading-6 text-[#5d3a1c]"
+              className="rounded-xl border border-[#c38b62]/35 bg-[#c38b62]/10 p-3 text-xs leading-5 text-[#e8b58e]"
               role="alert"
             >
               {outcome.conflict}
@@ -1528,26 +1539,126 @@ function KaizenWakeProgression({
           )}
 
           {resolvedMornings.length === 0 ? null : (
-            <div className="grid gap-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#495661]">
-                Recent mornings
-              </p>
-              <ul className="grid gap-1">
-                {resolvedMornings.map((morning) => (
-                  <li
-                    className="tabular-time text-xs leading-5 text-[#44515c]"
-                    key={morning.morning}
-                  >
-                    {morning.morning}: target {morning.target}, actual{" "}
-                    {morning.actualWake ?? "not recorded"}
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <ul className="grid gap-1 border-t border-white/10 pt-3">
+              {resolvedMornings.map((morning) => (
+                <li
+                  className="tabular-time text-xs leading-5 text-[#8794a0]"
+                  key={morning.morning}
+                >
+                  {morning.morning}: target {morning.target}, actual{" "}
+                  {morning.actualWake ?? "not recorded"}
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       )}
     </section>
+  );
+}
+
+function MorningLaunch({
+  onCorrectWake,
+  onLeave,
+  onRecordWakeNow,
+  outcome,
+  window: morningWindow,
+}: {
+  onCorrectWake: (value: string) => void;
+  onLeave: () => void;
+  onRecordWakeNow: () => void;
+  outcome: KaizenWakeOutcome;
+  window: KaizenMorningWindow;
+}) {
+  return (
+    <main className="relative isolate min-h-screen overflow-hidden bg-[#080c10] px-3 py-3 text-white sm:px-5 sm:py-5 lg:px-6 lg:py-6">
+      <div
+        aria-hidden="true"
+        className="absolute -left-40 top-1/4 -z-10 size-[32rem] rounded-full bg-[#506a7d]/15 blur-3xl"
+      />
+      <div
+        aria-hidden="true"
+        className="absolute -right-48 -top-48 -z-10 size-[34rem] rounded-full bg-[#79a99a]/12 blur-3xl"
+      />
+      <section
+        aria-label="Morning launch"
+        className="metal-panel-dark mx-auto flex min-h-[calc(100vh-1.5rem)] w-full max-w-4xl flex-col justify-between gap-5 p-4 min-[360px]:gap-8 min-[360px]:p-5 sm:min-h-[calc(100vh-2.5rem)] sm:gap-10 sm:p-8 lg:min-h-[calc(100vh-3rem)] lg:p-10"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span
+              aria-hidden="true"
+              className="flex size-11 items-center justify-center rounded-[0.9rem] border border-white/20 bg-white/10 font-mono text-lg font-semibold text-[#d9e5ee]"
+            >
+              S
+            </span>
+            <div>
+              <p className="text-sm font-semibold tracking-[0.08em]">SleepOps</p>
+              <p className="mt-0.5 text-xs text-[#9facb7]">Morning launch</p>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-2 rounded-full border border-[#79a99a]/35 bg-[#79a99a]/10 px-3 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.13em] text-[#b8dfd2]">
+            <span className="size-1.5 rounded-full bg-[#7cc4ad] shadow-[0_0_0_4px_rgba(124,196,173,0.1)]" />
+            Morning {morningWindow.target}-{morningWindow.endTime}
+          </span>
+        </div>
+
+        <div className="rounded-[1.35rem] border border-white/10 bg-black/15 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] min-[360px]:p-5 sm:p-7 lg:p-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9dc9bb]">
+            Today&apos;s target
+          </p>
+          <h1 className="tabular-time mt-4 text-[3.5rem] font-semibold leading-[0.98] tracking-[-0.045em] text-white min-[360px]:text-7xl sm:text-8xl">
+            {outcome.target}
+          </h1>
+          <p className="mt-5 text-lg font-semibold leading-7 text-white sm:text-xl" role="status">
+            {KAIZEN_STATUS_TEXT[outcome.status]}
+          </p>
+          <p className="tabular-time mt-2 text-sm leading-6 text-[#aab5be]">
+            Tomorrow {outcome.nextTarget}, lights out{" "}
+            {outcome.nextPlan.latestBedtime}, shutdown{" "}
+            {outcome.nextPlan.shutdownStartTime}
+          </p>
+          {outcome.conflict === null ? null : (
+            <p
+              className="mt-4 rounded-xl border border-[#c38b62]/35 bg-[#c38b62]/10 p-3 text-sm leading-6 text-[#e8b58e]"
+              role="alert"
+            >
+              {outcome.conflict}
+            </p>
+          )}
+        </div>
+
+        <div className="grid gap-4">
+          <button
+            className="button-inverse min-h-20 w-full px-6 sm:min-h-24"
+            onClick={onRecordWakeNow}
+            type="button"
+          >
+            <span className="text-3xl font-semibold tracking-[-0.02em] sm:text-4xl">
+              I&apos;m up
+            </span>
+          </button>
+          <div className="flex flex-col gap-3 min-[360px]:flex-row min-[360px]:items-end min-[360px]:justify-between">
+            <label className="grid gap-1 text-xs font-medium text-[#9facb7]">
+              Recorded wake
+              <input
+                className="sleepops-control-inverse tabular-time h-12 w-full min-w-0 px-3 text-base font-semibold min-[360px]:w-40"
+                onChange={(event) => onCorrectWake(event.currentTarget.value)}
+                type="time"
+                value={outcome.actualWake ?? ""}
+              />
+            </label>
+            <button
+              className="min-h-12 whitespace-nowrap rounded-[0.8rem] border border-white/20 bg-white/[0.04] px-6 font-semibold text-white transition-colors hover:border-white/30 hover:bg-white/[0.08]"
+              onClick={onLeave}
+              type="button"
+            >
+              Back to planning
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }
 
