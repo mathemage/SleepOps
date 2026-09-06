@@ -973,7 +973,7 @@ test("records the morning wake with one tap and moves tomorrow's target one minu
   );
 
   await kaizen.getByLabel("Wake target").fill("07:15");
-  await expect(kaizen).toContainText("Tomorrow's morning");
+  await expect(kaizen).toContainText("Today's target");
   await expect(kaizen.getByText("07:15", { exact: true })).toBeVisible();
 
   await kaizen.getByRole("button", { name: "I'm up" }).click();

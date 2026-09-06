@@ -1471,7 +1471,7 @@ function KaizenWakeProgression({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9facb7]">
-            Tomorrow&apos;s morning
+            Today&apos;s target
           </p>
           <p className="tabular-time mt-2 text-3xl font-semibold leading-none tracking-[-0.035em] text-white">
             {state?.target ?? "--:--"}
