@@ -48,9 +48,20 @@ import {
   writeProfilerData,
 } from "@/lib/pwa/storage";
 import {
+  KAIZEN_STEP_MINUTES,
+  advanceKaizenWakeState,
+  evaluateKaizenWake,
+  seedKaizenWakeState,
+  type KaizenWakeContract,
+  type KaizenWakeOutcome,
+  type KaizenWakeState,
+  type KaizenWakeStatus,
+} from "@/lib/kaizen";
+import {
   DAILY_PLAN_HISTORY_LIMIT,
   compareDailyPlan,
   createDailyPlanRecord,
+  normalizeActualClockTime,
   parseDailyPlanHistory,
   planNightDateKey,
   recordDailyPlanActuals,
@@ -94,6 +105,12 @@ const STEP_CLASSIFICATION_OPTIONS: Array<{
   { value: "movable-evening", label: "Move to evening" },
   { value: "decision-setup", label: "Prep tonight" },
 ];
+const KAIZEN_STATUS_TEXT: Record<KaizenWakeStatus, string> = {
+  pending: "Not recorded yet. Tap I'm up when you wake.",
+  success: `Success - tomorrow ${KAIZEN_STEP_MINUTES} min earlier.`,
+  held: "Target held - retry tomorrow.",
+  blocked: "Target held - the sleep contract comes first.",
+};
 const MORNING_LAUNCH_OPTIONS: Array<{
   value: MorningLaunchResult;
   label: string;
@@ -125,36 +142,14 @@ export function SleepCompiler() {
   const [shutdownRemindersEnabled, setShutdownRemindersEnabled] = useState(
     initialCoreState.shutdownRemindersEnabled,
   );
+  const [kaizenWake, setKaizenWake] = useState<KaizenWakeState | null>(
+    initialCoreState.kaizenWake,
+  );
   const [storageReady, setStorageReady] = useState(false);
   const [dailyPlanHistory, setDailyPlanHistory] = useState<DailyPlanRecord[]>(
     [],
   );
   const currentClock = useCurrentClock();
-
-  const serializedCoreState = useMemo(
-    () =>
-      serializeSleepOpsCoreState({
-        workStart,
-        manualMorningRoutineMinutes,
-        useProfiledMorningRoutine,
-        commuteBufferMinutes,
-        shutdownProgressState,
-        shutdownRemindersEnabled,
-      }),
-    [
-      commuteBufferMinutes,
-      manualMorningRoutineMinutes,
-      shutdownProgressState,
-      shutdownRemindersEnabled,
-      useProfiledMorningRoutine,
-      workStart,
-    ],
-  );
-  const latestSerializedCoreState = useRef(serializedCoreState);
-
-  useLayoutEffect(() => {
-    latestSerializedCoreState.current = serializedCoreState;
-  }, [serializedCoreState]);
 
   useEffect(() => {
     let active = true;
@@ -172,6 +167,7 @@ export function SleepCompiler() {
         setCommuteBufferMinutes(storedState.commuteBufferMinutes);
         setShutdownProgressState({ ...storedState.shutdownProgressState });
         setShutdownRemindersEnabled(storedState.shutdownRemindersEnabled);
+        setKaizenWake(storedState.kaizenWake);
         setDailyPlanHistory(parseDailyPlanHistory(rawDailyPlanHistory));
         setStorageReady(true);
       },
@@ -181,41 +177,6 @@ export function SleepCompiler() {
       active = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (!storageReady) {
-      return;
-    }
-
-    const persistCoreState = () => {
-      void writeCoreState(serializedCoreState);
-    };
-
-    const timeoutId = window.setTimeout(
-      persistCoreState,
-      CORE_STATE_WRITE_DEBOUNCE_MS,
-    );
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [serializedCoreState, storageReady]);
-
-  useEffect(() => {
-    if (!storageReady) {
-      return;
-    }
-
-    const persistLatestCoreState = () => {
-      void writeCoreState(latestSerializedCoreState.current);
-    };
-
-    window.addEventListener("pagehide", persistLatestCoreState);
-
-    return () => {
-      window.removeEventListener("pagehide", persistLatestCoreState);
-    };
-  }, [storageReady]);
 
   const { recordDateKey, retainedStartKey, setRecordDateKey, todayKey } =
     useProfilerDateKeys();
@@ -359,6 +320,77 @@ export function SleepCompiler() {
     isShutdownWindowActive(shutdownWindow, currentClock.time);
   const showShutdownAssistant = shutdownPreviewMode || isShutdownActive;
 
+  const kaizenContract: KaizenWakeContract = {
+    workStart: schedule.workStart,
+    shutdownMinutes: schedule.shutdownMinutes,
+  };
+  const actualWakeForNight = (night: string) =>
+    dailyPlanHistory.find((record) => record.date === night)?.actuals.wakeTime ??
+    null;
+  // The wake recorded on a morning belongs to the night before it.
+  const kaizenState =
+    storageReady && kaizenWake && currentClock
+      ? advanceKaizenWakeState({
+          actualWake: actualWakeForNight(
+            addDaysToDateKey(kaizenWake.morning, -1),
+          ),
+          contract: kaizenContract,
+          morning: currentClock.dateKey,
+          state: kaizenWake,
+        })
+      : kaizenWake;
+
+  // Serialized every render on purpose: the string value keeps the write effects stable.
+  const serializedCoreState = serializeSleepOpsCoreState({
+    workStart,
+    manualMorningRoutineMinutes,
+    useProfiledMorningRoutine,
+    commuteBufferMinutes,
+    shutdownProgressState,
+    shutdownRemindersEnabled,
+    kaizenWake: kaizenState,
+  });
+  const latestSerializedCoreState = useRef(serializedCoreState);
+
+  useLayoutEffect(() => {
+    latestSerializedCoreState.current = serializedCoreState;
+  }, [serializedCoreState]);
+
+  useEffect(() => {
+    if (!storageReady) {
+      return;
+    }
+
+    const persistCoreState = () => {
+      void writeCoreState(serializedCoreState);
+    };
+
+    const timeoutId = window.setTimeout(
+      persistCoreState,
+      CORE_STATE_WRITE_DEBOUNCE_MS,
+    );
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [serializedCoreState, storageReady]);
+
+  useEffect(() => {
+    if (!storageReady) {
+      return;
+    }
+
+    const persistLatestCoreState = () => {
+      void writeCoreState(latestSerializedCoreState.current);
+    };
+
+    window.addEventListener("pagehide", persistLatestCoreState);
+
+    return () => {
+      window.removeEventListener("pagehide", persistLatestCoreState);
+    };
+  }, [storageReady]);
+
   const applyCompressedRoutine = () => {
     setManualMorningRoutineMinutes(routineCompression.minimumMorningMinutes);
     setUseProfiledMorningRoutine(false);
@@ -420,17 +452,67 @@ export function SleepCompiler() {
     void writeDailyPlanHistory(serializeDailyPlanHistory(nextHistory));
   };
 
+  const morningRoutineSource =
+    useProfiledMorningRoutine && canUseProfiled ? "profiled" : "manual";
+
   const saveTonightsPlan = () => {
     updateDailyPlanHistory(
       saveDailyPlan(
         dailyPlanHistory,
         createDailyPlanRecord({
           date: planNightKey,
-          morningRoutineSource:
-            useProfiledMorningRoutine && canUseProfiled ? "profiled" : "manual",
+          morningRoutineSource,
           schedule,
         }),
       ),
+    );
+  };
+
+  const lastNightKey = currentClock.previousDateKey;
+  const kaizenOutcome = kaizenState
+    ? evaluateKaizenWake({
+        actualWake: actualWakeForNight(lastNightKey),
+        contract: kaizenContract,
+        target: kaizenState.target,
+      })
+    : null;
+  const kaizenResolvedMornings = (kaizenState?.resolved ?? []).map((entry) => ({
+    ...entry,
+    actualWake: actualWakeForNight(addDaysToDateKey(entry.morning, -1)),
+  }));
+
+  const recordActualWake = (value: string) => {
+    // Pin the rolled-forward target so a long-lived session keeps advancing daily.
+    setKaizenWake(kaizenState);
+
+    const nightHistory = dailyPlanHistory.some(
+      (record) => record.date === lastNightKey,
+    )
+      ? dailyPlanHistory
+      : saveDailyPlan(
+          dailyPlanHistory,
+          createDailyPlanRecord({
+            date: lastNightKey,
+            morningRoutineSource,
+            schedule,
+          }),
+        );
+
+    updateDailyPlanHistory(
+      recordDailyPlanActuals(nightHistory, lastNightKey, { wakeTime: value }),
+    );
+  };
+
+  const seedKaizenTarget = (value: string) => {
+    const target = normalizeActualClockTime(value);
+
+    setKaizenWake(
+      target === null
+        ? null
+        : seedKaizenWakeState(kaizenState, {
+            morning: currentClock.dateKey,
+            target,
+          }),
     );
   };
 
@@ -976,6 +1058,15 @@ export function SleepCompiler() {
             </div>
           </section>
 
+          <KaizenWakeProgression
+            onCorrectWake={recordActualWake}
+            onRecordWakeNow={() => recordActualWake(readCurrentClock().time)}
+            onSeedTarget={seedKaizenTarget}
+            outcome={kaizenOutcome}
+            resolvedMornings={kaizenResolvedMornings}
+            state={kaizenState}
+          />
+
           <DailyPlanHistory
             onRecordActuals={recordNightActuals}
             onSavePlan={saveTonightsPlan}
@@ -1319,6 +1410,143 @@ function ShutdownReminderSetup({
             : "Enable open-app reminders"}
         </button>
       </div>
+    </section>
+  );
+}
+
+function KaizenWakeProgression({
+  onCorrectWake,
+  onRecordWakeNow,
+  onSeedTarget,
+  outcome,
+  resolvedMornings,
+  state,
+}: {
+  onCorrectWake: (value: string) => void;
+  onRecordWakeNow: () => void;
+  onSeedTarget: (value: string) => void;
+  outcome: KaizenWakeOutcome | null;
+  resolvedMornings: Array<{
+    actualWake: string | null;
+    morning: string;
+    target: string;
+  }>;
+  state: KaizenWakeState | null;
+}) {
+  return (
+    <section
+      aria-labelledby="kaizen-wake-heading"
+      className="metal-panel p-5 sm:p-6"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#596976]">
+            Daily loop
+          </p>
+          <h2
+            className="mt-1 text-2xl font-semibold tracking-[-0.03em] text-[#151d24]"
+            id="kaizen-wake-heading"
+          >
+            Kaizen wake progression
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#687581]">
+            Waking at or before the target moves it {KAIZEN_STEP_MINUTES} minute
+            earlier tomorrow. A later morning holds the target where it is.
+            Lights out and shutdown move earlier with it, never the sleep.
+          </p>
+        </div>
+        <label className="grid w-fit gap-1 text-xs font-medium text-[#44515c]">
+          Wake target
+          <input
+            className="sleepops-control tabular-time h-10 w-full min-w-0 px-2 text-sm font-semibold"
+            onChange={(event) => onSeedTarget(event.currentTarget.value)}
+            type="time"
+            value={state?.target ?? ""}
+          />
+        </label>
+      </div>
+
+      {state === null || outcome === null ? (
+        <p className="inset-panel mt-5 p-3.5 text-sm text-[#687581]">
+          Seed a wake target to start the progression.
+        </p>
+      ) : (
+        <div className="mt-5 grid gap-3">
+          <div className="inset-panel grid gap-3 p-3.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-center">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#495661]">
+                Today&apos;s target
+              </p>
+              <p className="tabular-time mt-2 text-4xl font-semibold text-[#151d24]">
+                {state.target}
+              </p>
+            </div>
+            <button
+              className="button-primary min-h-16 w-full px-4 text-lg font-semibold"
+              onClick={onRecordWakeNow}
+              type="button"
+            >
+              I&apos;m up
+            </button>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-start">
+            <label className="grid gap-1 text-xs font-medium text-[#44515c]">
+              Recorded wake
+              <input
+                className="sleepops-control tabular-time h-10 w-full min-w-0 px-2 text-sm font-semibold"
+                onChange={(event) => onCorrectWake(event.currentTarget.value)}
+                type="time"
+                value={outcome.actualWake ?? ""}
+              />
+            </label>
+            <div className="grid gap-1.5">
+              <p
+                className="text-sm font-semibold text-[#1c252d]"
+                role="status"
+              >
+                {KAIZEN_STATUS_TEXT[outcome.status]}
+              </p>
+              <p className="tabular-time text-xs leading-5 text-[#44515c]">
+                Tomorrow {outcome.nextTarget}, lights out{" "}
+                {outcome.nextPlan.latestBedtime}, shutdown{" "}
+                {outcome.nextPlan.shutdownStartTime}
+              </p>
+              <p className="text-xs leading-5 text-[#687581]">
+                Step {KAIZEN_STEP_MINUTES} min per successful day
+              </p>
+            </div>
+          </div>
+
+          {outcome.conflict === null ? null : (
+            <p
+              className="rounded-2xl border border-[#d6b391] bg-[#f5e7da] p-3.5 text-sm leading-6 text-[#5d3a1c]"
+              role="alert"
+            >
+              {outcome.conflict}
+            </p>
+          )}
+
+          {resolvedMornings.length === 0 ? null : (
+            <div className="grid gap-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#495661]">
+                Recent mornings
+              </p>
+              <ul className="grid gap-1">
+                {resolvedMornings.map((morning) => (
+                  <li
+                    className="tabular-time text-xs leading-5 text-[#44515c]"
+                    key={morning.morning}
+                  >
+                    {morning.morning}: target {morning.target}, actual{" "}
+                    {morning.actualWake ?? "not recorded"}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }

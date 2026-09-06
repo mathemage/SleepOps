@@ -1,3 +1,7 @@
+import {
+  normalizeKaizenWakeState,
+  type KaizenWakeState,
+} from "../kaizen";
 import { parseClockTime } from "../sleep";
 
 export const SLEEPOPS_STATE_STORAGE_KEY = "sleepops.coreState.v1";
@@ -12,6 +16,7 @@ export type SleepOpsCoreState = {
     completedActions: number;
   };
   shutdownRemindersEnabled: boolean;
+  kaizenWake: KaizenWakeState | null;
 };
 
 export const DEFAULT_SLEEP_OPS_CORE_STATE: SleepOpsCoreState = {
@@ -24,6 +29,7 @@ export const DEFAULT_SLEEP_OPS_CORE_STATE: SleepOpsCoreState = {
     completedActions: 0,
   },
   shutdownRemindersEnabled: false,
+  kaizenWake: null,
 };
 
 const STATE_VERSION = 1;
@@ -95,6 +101,7 @@ export function normalizeSleepOpsCoreState(
       typeof value.shutdownRemindersEnabled === "boolean"
         ? value.shutdownRemindersEnabled
         : DEFAULT_SLEEP_OPS_CORE_STATE.shutdownRemindersEnabled,
+    kaizenWake: normalizeKaizenWakeState(value.kaizenWake),
   };
 }
 

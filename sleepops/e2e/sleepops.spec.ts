@@ -103,6 +103,20 @@ test("migrates existing v1 core and profiler data into IndexedDB", async ({
     },
     shutdownRemindersEnabled: false,
   });
+  // The first write after migration re-serializes the state with the fields v1 lacked.
+  const migratedCoreState = JSON.stringify({
+    version: 1,
+    workStart: "10:00",
+    manualMorningRoutineMinutes: 60,
+    useProfiledMorningRoutine: false,
+    commuteBufferMinutes: 45,
+    shutdownProgressState: {
+      sessionKey: "",
+      completedActions: 0,
+    },
+    shutdownRemindersEnabled: false,
+    kaizenWake: null,
+  });
   const profilerData = JSON.stringify({
     steps: [
       {
@@ -151,7 +165,7 @@ test("migrates existing v1 core and profiler data into IndexedDB", async ({
     .toMatchObject({
       schemaVersion: 1,
       records: {
-        coreState,
+        coreState: migratedCoreState,
         morningRoutineProfiler: profilerData,
         dailyPlanHistory: null,
       },
@@ -160,11 +174,13 @@ test("migrates existing v1 core and profiler data into IndexedDB", async ({
         morningRoutineProfiler: profilerData,
       },
     });
-  expect(
-    await page.evaluate(() =>
-      window.localStorage.getItem("sleepops.coreState.v1"),
-    ),
-  ).toBe(coreState);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.localStorage.getItem("sleepops.coreState.v1"),
+      ),
+    )
+    .toBe(migratedCoreState);
   expect(
     await page.evaluate(() =>
       window.localStorage.getItem("sleepops.morningRoutineProfiler.v1"),
@@ -941,6 +957,91 @@ test("compares actual sleep for a plan whose lights-out falls after midnight", a
   await expect(night).toContainText(
     "Sleep 8h 20m of 9h (-40m), morning 2h of 1h 45m (+15m), shutdown not recorded.",
   );
+});
+
+test("records the morning wake with one tap and moves tomorrow's target one minute earlier", async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date("2026-05-10T07:10:00Z"));
+  await page.goto("/");
+
+  const kaizen = page.getByRole("region", {
+    name: "Kaizen wake progression",
+  });
+  await expect(kaizen).toContainText(
+    "Seed a wake target to start the progression.",
+  );
+
+  await kaizen.getByLabel("Wake target").fill("07:15");
+  await expect(kaizen).toContainText("Today's target");
+  await expect(kaizen.getByText("07:15", { exact: true })).toBeVisible();
+
+  await kaizen.getByRole("button", { name: "I'm up" }).click();
+
+  await expect(kaizen.getByLabel("Recorded wake")).toHaveValue("07:10");
+  await expect(kaizen).toContainText("Success - tomorrow 1 min earlier.");
+  await expect(kaizen).toContainText(
+    "Tomorrow 07:14, lights out 22:14, shutdown 21:29",
+  );
+  await expect(kaizen).toContainText("Step 1 min per successful day");
+
+  await page.reload();
+
+  await expect(kaizen.getByLabel("Wake target")).toHaveValue("07:15");
+  await expect(kaizen.getByLabel("Recorded wake")).toHaveValue("07:10");
+  await expect(kaizen).toContainText("Success - tomorrow 1 min earlier.");
+
+  await page.clock.setFixedTime(new Date("2026-05-11T07:10:00Z"));
+  await page.reload();
+
+  await expect(kaizen.getByLabel("Wake target")).toHaveValue("07:14");
+  await expect(kaizen.getByLabel("Recorded wake")).toHaveValue("");
+  await expect(kaizen).toContainText("Not recorded yet.");
+  await expect(kaizen).toContainText("2026-05-10: target 07:15, actual 07:10");
+});
+
+test("holds the wake target after a late morning and accepts a correction", async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date("2026-05-10T07:35:00Z"));
+  await page.goto("/");
+
+  const kaizen = page.getByRole("region", {
+    name: "Kaizen wake progression",
+  });
+  await kaizen.getByLabel("Wake target").fill("07:15");
+  await kaizen.getByRole("button", { name: "I'm up" }).click();
+
+  await expect(kaizen.getByLabel("Recorded wake")).toHaveValue("07:35");
+  await expect(kaizen).toContainText("Target held - retry tomorrow.");
+  await expect(kaizen).toContainText("Tomorrow 07:15");
+
+  await kaizen.getByLabel("Recorded wake").fill("07:05");
+
+  await expect(kaizen).toContainText("Success - tomorrow 1 min earlier.");
+  await expect(kaizen).toContainText("Tomorrow 07:14");
+});
+
+test("holds progression when the next wake target breaks the sleep contract", async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date("2026-05-10T18:40:00Z"));
+  await page.goto("/");
+
+  const kaizen = page.getByRole("region", {
+    name: "Kaizen wake progression",
+  });
+  await kaizen.getByLabel("Wake target").fill("18:45");
+  await kaizen.getByRole("button", { name: "I'm up" }).click();
+
+  await expect(kaizen.getByLabel("Recorded wake")).toHaveValue("18:40");
+  await expect(kaizen).toContainText(
+    "Target held - the sleep contract comes first.",
+  );
+  await expect(kaizen.getByRole("alert")).toContainText(
+    "Waking at 18:44 would need lights out 09:44 and shutdown 08:59, which no longer fits 9h of sleep.",
+  );
+  await expect(kaizen).toContainText("Tomorrow 18:45");
 });
 
 type BrowserStorageDocument = {

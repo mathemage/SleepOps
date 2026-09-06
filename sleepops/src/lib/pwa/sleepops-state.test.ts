@@ -18,6 +18,11 @@ describe("SleepOps core state persistence", () => {
         completedActions: 2,
       },
       shutdownRemindersEnabled: true,
+      kaizenWake: {
+        target: "07:15",
+        morning: "2026-05-10",
+        resolved: [{ morning: "2026-05-09", target: "07:16" }],
+      },
     };
 
     expect(parseSleepOpsCoreState(serializeSleepOpsCoreState(state))).toEqual(
@@ -49,6 +54,19 @@ describe("SleepOps core state persistence", () => {
       },
       shutdownRemindersEnabled: true,
     });
+  });
+
+  it("drops a Kaizen wake target that lost its clock time or morning", () => {
+    expect(
+      normalizeSleepOpsCoreState({
+        kaizenWake: { target: "25:00", morning: "2026-05-10" },
+      }).kaizenWake,
+    ).toBeNull();
+    expect(
+      normalizeSleepOpsCoreState({
+        kaizenWake: { target: "07:15", morning: "2026-13-40" },
+      }).kaizenWake,
+    ).toBeNull();
   });
 
   it("uses defaults for malformed stored state", () => {
