@@ -107,18 +107,17 @@ export function evaluateKaizenWake({
     parseClockTime(target) - KAIZEN_STEP_MINUTES,
   );
   const steppedPlan = buildKaizenWakePlan(steppedTarget, contract);
-  const conflict =
-    steppedPlan.availableFlexMinutes < 0
-      ? `Waking at ${steppedTarget} would need lights out ${steppedPlan.latestBedtime} and shutdown ${steppedPlan.shutdownStartTime}, which no longer fits ${formatDuration(steppedPlan.requiredSleepMinutes)} of sleep.`
-      : null;
-  const advances = reachedTarget && conflict === null;
+  // The conflict is only ever the reason a step was refused, so a day that missed
+  // the target reads as held rather than as a contract problem.
+  const blocked = reachedTarget && steppedPlan.availableFlexMinutes < 0;
+  const advances = reachedTarget && !blocked;
 
   return {
     status: actualWake === null
       ? "pending"
       : advances
         ? "success"
-        : reachedTarget
+        : blocked
           ? "blocked"
           : "held",
     target,
@@ -126,7 +125,9 @@ export function evaluateKaizenWake({
     offsetMinutes,
     nextTarget: advances ? steppedTarget : target,
     nextPlan: advances ? steppedPlan : buildKaizenWakePlan(target, contract),
-    conflict,
+    conflict: blocked
+      ? `Waking at ${steppedTarget} would need lights out ${steppedPlan.latestBedtime} and shutdown ${steppedPlan.shutdownStartTime}, which no longer fits ${formatDuration(steppedPlan.requiredSleepMinutes)} of sleep.`
+      : null,
   };
 }
 

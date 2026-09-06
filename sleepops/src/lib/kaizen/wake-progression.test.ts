@@ -52,6 +52,16 @@ describe("Kaizen wake progression", () => {
     expect(outcome.status).toBe("held");
     expect(outcome.offsetMinutes).toBe(20);
     expect(outcome.nextTarget).toBe("07:15");
+    expect(outcome.conflict).toBeNull();
+  });
+
+  it("reads a missed morning as held even at a target the contract would block", () => {
+    expect(evaluate("18:45", "19:30")).toMatchObject({
+      status: "held",
+      nextTarget: "18:45",
+      conflict: null,
+    });
+    expect(evaluate("18:45", null).conflict).toBeNull();
   });
 
   it("holds the target while no wake is recorded", () => {
