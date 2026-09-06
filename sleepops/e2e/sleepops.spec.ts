@@ -1049,6 +1049,28 @@ test("takes over the screen during the morning window and hands back to planning
   await expect(page.getByRole("region", { name: "Morning launch" })).toBeVisible();
 });
 
+test("reopens the morning screen on the next morning of the same session", async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date("2026-05-10T07:35:00Z") });
+  await page.goto("/");
+
+  const kaizen = page.getByRole("region", {
+    name: "Kaizen wake progression",
+  });
+  await kaizen.getByLabel("Wake target").fill("07:15");
+
+  const morning = page.getByRole("region", { name: "Morning launch" });
+  await expect(morning).toBeVisible();
+
+  await morning.getByRole("button", { name: "Back to planning" }).click();
+  await expect(morning).toBeHidden();
+
+  await page.clock.fastForward(24 * 60 * 60 * 1000);
+
+  await expect(morning).toBeVisible();
+});
+
 test("holds progression when the next wake target breaks the sleep contract", async ({
   page,
 }) => {

@@ -148,7 +148,8 @@ export function SleepCompiler() {
   const [kaizenWake, setKaizenWake] = useState<KaizenWakeState | null>(
     initialCoreState.kaizenWake,
   );
-  const [morningLaunchClosed, setMorningLaunchClosed] = useState(false);
+  // Leaving the morning screen closes that morning only, not every morning after it.
+  const [morningLaunchClosedFor, setMorningLaunchClosedFor] = useState("");
   const [storageReady, setStorageReady] = useState(false);
   const [dailyPlanHistory, setDailyPlanHistory] = useState<DailyPlanRecord[]>(
     [],
@@ -535,13 +536,13 @@ export function SleepCompiler() {
   if (
     kaizenOutcome &&
     morningWindow &&
-    !morningLaunchClosed &&
+    morningLaunchClosedFor !== currentClock.dateKey &&
     isKaizenMorningActive(morningWindow, currentClock.time)
   ) {
     return (
       <MorningLaunch
         onCorrectWake={recordActualWake}
-        onLeave={() => setMorningLaunchClosed(true)}
+        onLeave={() => setMorningLaunchClosedFor(currentClock.dateKey)}
         onRecordWakeNow={() => recordActualWake(readCurrentClock().time)}
         outcome={kaizenOutcome}
         window={morningWindow}
