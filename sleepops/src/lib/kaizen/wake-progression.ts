@@ -141,6 +141,10 @@ export function seedKaizenWakeState(
 /**
  * Carries the established target into a new morning, applying at most one step for
  * the morning that just closed. An unrecorded morning holds the target.
+ *
+ * One step per call is deliberate rather than one step per elapsed day: a morning
+ * is only credited if the wake was recorded while it was happening, so days spent
+ * away from the app hold, and back-filling old nights later cannot buy steps.
  */
 export function advanceKaizenWakeState({
   actualWake,
