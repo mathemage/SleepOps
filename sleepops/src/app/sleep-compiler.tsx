@@ -509,15 +509,18 @@ export function SleepCompiler() {
   };
 
   const seedKaizenTarget = (value: string) => {
+    // A time input reads empty while a segment is being retyped, which must never
+    // be taken as a request to drop the target and the mornings behind it.
     const target = normalizeActualClockTime(value);
+    if (target === null) {
+      return;
+    }
 
     setKaizenWake(
-      target === null
-        ? null
-        : seedKaizenWakeState(kaizenState, {
-            morning: currentClock.dateKey,
-            target,
-          }),
+      seedKaizenWakeState(kaizenState, {
+        morning: currentClock.dateKey,
+        target,
+      }),
     );
   };
 

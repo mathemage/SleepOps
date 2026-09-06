@@ -998,6 +998,11 @@ test("records the morning wake with one tap and moves tomorrow's target one minu
   await expect(kaizen.getByLabel("Recorded wake")).toHaveValue("");
   await expect(kaizen).toContainText("Not recorded yet.");
   await expect(kaizen).toContainText("2026-05-10: target 07:15, actual 07:10");
+
+  await kaizen.getByLabel("Wake target").fill("");
+
+  await expect(kaizen.getByLabel("Wake target")).toHaveValue("07:14");
+  await expect(kaizen).toContainText("2026-05-10: target 07:15, actual 07:10");
 });
 
 test("takes over the screen during the morning window and hands back to planning", async ({
