@@ -1927,10 +1927,10 @@ function DurationControl({
             className="tabular-time h-full min-w-0 flex-1 rounded-l-[0.7rem] bg-transparent px-3 text-lg font-semibold outline-none"
             disabled={disabled}
             id={id}
+            inputMode="numeric"
             max={max}
             min={0}
             onValueCommit={(value) => onChange(Number(value))}
-            inputMode="numeric"
             required
             step={SLEEPOPS_MINUTES_STEP}
             type="number"
