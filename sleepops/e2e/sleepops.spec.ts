@@ -1,5 +1,10 @@
 import { expect, test, type Locator, type Page } from "playwright/test";
 
+async function fillAndCommit(input: Locator, value: string) {
+  await input.fill(value);
+  await input.blur();
+}
+
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-05-10T12:00:00Z"));
 });
@@ -193,13 +198,9 @@ test("persists the sleep contract and compressed routine inputs across reloads",
 }) => {
   await page.goto("/");
 
-  await page.getByLabel("Work start time").fill("10:00");
-  await page
-    .getByRole("spinbutton", { name: "Morning routine duration" })
-    .fill("60");
-  await page
-    .getByRole("spinbutton", { name: "Commute / buffer duration" })
-    .fill("45");
+  await fillAndCommit(page.getByLabel("Work start time"), "10:00");
+  await fillAndCommit(page.getByRole("spinbutton", { name: "Morning routine duration" }), "60");
+  await fillAndCommit(page.getByRole("spinbutton", { name: "Commute / buffer duration" }), "45");
   await page.getByLabel("Classify shower").selectOption("movable-evening");
 
   await expect
@@ -260,7 +261,7 @@ test("serves the main app shell after simulated offline cache conditions", async
     page.getByRole("heading", { name: "Tonight's shutdown deadline" }),
   ).toBeVisible();
 
-  await page.getByLabel("Work start time").fill("10:00");
+  await fillAndCommit(page.getByLabel("Work start time"), "10:00");
   await expect
     .poll(async () => {
       const document = await readSleepOpsStorageDocument(page);
@@ -459,18 +460,14 @@ test("recalculates for a 10-6 day and warns on impossible input", async ({
 }) => {
   await page.goto("/");
 
-  await page.getByLabel("Work start time").fill("10:00");
+  await fillAndCommit(page.getByLabel("Work start time"), "10:00");
 
   await expect(page.getByText("Start shutdown by 22:30")).toBeVisible();
   await expect(page.getByRole("definition").filter({ hasText: "08:15" })).toBeVisible();
   await expect(page.getByRole("definition").filter({ hasText: "23:15" })).toBeVisible();
 
-  await page
-    .getByRole("spinbutton", { name: "Morning routine duration" })
-    .fill("840");
-  await page
-    .getByRole("spinbutton", { name: "Commute / buffer duration" })
-    .fill("60");
+  await fillAndCommit(page.getByRole("spinbutton", { name: "Morning routine duration" }), "840");
+  await fillAndCommit(page.getByRole("spinbutton", { name: "Commute / buffer duration" }), "60");
 
   const constraintAlert = page.locator("main").getByRole("alert");
 
@@ -489,13 +486,9 @@ test("shows active shutdown mode during the shutdown window even when overbooked
   await page.clock.setFixedTime(new Date("2026-05-10T09:30:00Z"));
   await page.goto("/");
 
-  await page.getByLabel("Work start time").fill("10:00");
-  await page
-    .getByRole("spinbutton", { name: "Morning routine duration" })
-    .fill("840");
-  await page
-    .getByRole("spinbutton", { name: "Commute / buffer duration" })
-    .fill("60");
+  await fillAndCommit(page.getByLabel("Work start time"), "10:00");
+  await fillAndCommit(page.getByRole("spinbutton", { name: "Morning routine duration" }), "840");
+  await fillAndCommit(page.getByRole("spinbutton", { name: "Commute / buffer duration" }), "60");
 
   const assistant = page.getByRole("region", {
     name: "Evening shutdown assistant",
@@ -544,8 +537,8 @@ test("normalizes typed duration values to the allowed range and step", async ({
     name: "Commute / buffer duration",
   });
 
-  await morningRoutine.fill("842");
-  await commuteBuffer.fill("999");
+  await fillAndCommit(morningRoutine, "842");
+  await fillAndCommit(commuteBuffer, "999");
 
   await expect(morningRoutine).toHaveValue("840");
   await expect(commuteBuffer).toHaveValue("240");
@@ -576,7 +569,7 @@ test("does not add default minutes for custom steps before they are recorded", a
 }) => {
   await page.goto("/");
 
-  await page.getByLabel("New step name").fill("Coffee");
+  await fillAndCommit(page.getByLabel("New step name"), "Coffee");
   await page.getByRole("button", { name: "Add step" }).click();
 
   await expect(page.locator('input[type="text"][value="Coffee"]')).toBeVisible();
@@ -591,13 +584,13 @@ test("compresses classified routine tasks and applies the minimum morning", asyn
 }) => {
   await page.goto("/");
 
-  await page.getByLabel("Minutes wake").fill("10");
-  await page.getByLabel("Minutes wc").fill("5");
-  await page.getByLabel("Minutes exercise").fill("20");
-  await page.getByLabel("Minutes shower").fill("15");
-  await page.getByLabel("Minutes eat").fill("10");
-  await page.getByLabel("Minutes brush-teeth").fill("5");
-  await page.getByLabel("Minutes toilet").fill("30");
+  await fillAndCommit(page.getByLabel("Minutes wake"), "10");
+  await fillAndCommit(page.getByLabel("Minutes wc"), "5");
+  await fillAndCommit(page.getByLabel("Minutes exercise"), "20");
+  await fillAndCommit(page.getByLabel("Minutes shower"), "15");
+  await fillAndCommit(page.getByLabel("Minutes eat"), "10");
+  await fillAndCommit(page.getByLabel("Minutes brush-teeth"), "5");
+  await fillAndCommit(page.getByLabel("Minutes toilet"), "30");
 
   await page.getByLabel("Classify exercise").selectOption("movable-evening");
   await page.getByLabel("Classify shower").selectOption("movable-evening");
@@ -646,7 +639,7 @@ test("keeps moved tasks outside shutdown mode when they do not fit", async ({
 }) => {
   await page.goto("/");
 
-  await page.getByLabel("Minutes exercise").fill("60");
+  await fillAndCommit(page.getByLabel("Minutes exercise"), "60");
   await page.getByLabel("Classify exercise").selectOption("movable-evening");
 
   await expect(page.getByText("Shutdown duration").locator("..")).toContainText(
@@ -773,16 +766,16 @@ test("records step durations, persists them, and feeds the measured total into t
   await expect(dayInput).toHaveAttribute("max", /\d{4}-\d{2}-\d{2}/);
 
   const retainedStartKey = await dayInput.getAttribute("min");
-  await dayInput.fill("2000-01-01");
+  await fillAndCommit(dayInput, "2000-01-01");
   await expect(dayInput).toHaveValue(retainedStartKey!);
 
-  await page.getByLabel("Minutes wc").fill("0");
-  await page.getByLabel("Minutes exercise").fill("0");
-  await page.getByLabel("Minutes wake").fill("60");
-  await page.getByLabel("Minutes shower").fill("45");
-  await page.getByLabel("Minutes eat").fill("15");
-  await page.getByLabel("Minutes brush-teeth").fill("0");
-  await page.getByLabel("Minutes toilet").fill("0");
+  await fillAndCommit(page.getByLabel("Minutes wc"), "0");
+  await fillAndCommit(page.getByLabel("Minutes exercise"), "0");
+  await fillAndCommit(page.getByLabel("Minutes wake"), "60");
+  await fillAndCommit(page.getByLabel("Minutes shower"), "45");
+  await fillAndCommit(page.getByLabel("Minutes eat"), "15");
+  await fillAndCommit(page.getByLabel("Minutes brush-teeth"), "0");
+  await fillAndCommit(page.getByLabel("Minutes toilet"), "0");
 
   await expect(page.getByRole("list", { name: "Top time leaks" })).toBeVisible();
   await expect(page.getByRole("list", { name: "Top time leaks" })).toContainText(
@@ -800,14 +793,14 @@ test("records step durations, persists them, and feeds the measured total into t
   await expect(page.getByText("Start shutdown by 20:45")).toBeVisible();
   await expect(page.getByRole("definition").filter({ hasText: "06:30" })).toBeVisible();
 
-  await page.getByRole("textbox", { name: "Day" }).fill(retainedStartKey!);
-  await page.getByLabel("Minutes wc").fill("0");
-  await page.getByLabel("Minutes exercise").fill("0");
-  await page.getByLabel("Minutes wake").fill("0");
-  await page.getByLabel("Minutes shower").fill("0");
-  await page.getByLabel("Minutes eat").fill("0");
-  await page.getByLabel("Minutes brush-teeth").fill("0");
-  await page.getByLabel("Minutes toilet").fill("0");
+  await fillAndCommit(page.getByRole("textbox", { name: "Day" }), retainedStartKey!);
+  await fillAndCommit(page.getByLabel("Minutes wc"), "0");
+  await fillAndCommit(page.getByLabel("Minutes exercise"), "0");
+  await fillAndCommit(page.getByLabel("Minutes wake"), "0");
+  await fillAndCommit(page.getByLabel("Minutes shower"), "0");
+  await fillAndCommit(page.getByLabel("Minutes eat"), "0");
+  await fillAndCommit(page.getByLabel("Minutes brush-teeth"), "0");
+  await fillAndCommit(page.getByLabel("Minutes toilet"), "0");
 
   const measuredAverage = page.getByLabel(/Use measured 7-day average/);
   await expect(measuredAverage).not.toBeChecked();
@@ -855,7 +848,7 @@ test("keeps the profiler usable when browser storage is unavailable", async ({
 
   await expect(page.getByRole("heading", { name: "Tonight's shutdown deadline" })).toBeVisible();
 
-  await page.getByLabel("Minutes wake").fill("20");
+  await fillAndCommit(page.getByLabel("Minutes wake"), "20");
 
   await expect(page.getByRole("list", { name: "Top time leaks" })).toContainText(
     "Wake (boot up)",
@@ -880,9 +873,9 @@ test("saves tonight's plan, records actuals, and keeps the comparison across rel
     "Plan 21:30 shutdown, 22:15 lights out, 07:15 wake, 09:00 work",
   );
 
-  await night.getByLabel("Actual shutdown").fill("21:45");
-  await night.getByLabel("Actual lights out").fill("22:40");
-  await night.getByLabel("Actual wake").fill("07:05");
+  await fillAndCommit(night.getByLabel("Actual shutdown"), "21:45");
+  await fillAndCommit(night.getByLabel("Actual lights out"), "22:40");
+  await fillAndCommit(night.getByLabel("Actual wake"), "07:05");
   await night.getByLabel("Morning launch").selectOption("late");
 
   await expect(night).toContainText(
@@ -941,7 +934,7 @@ test("compares actual sleep for a plan whose lights-out falls after midnight", a
 }) => {
   await page.goto("/");
 
-  await page.getByLabel("Work start time").fill("12:00");
+  await fillAndCommit(page.getByLabel("Work start time"), "12:00");
   await expect(page.getByText("Start shutdown by 00:30")).toBeVisible();
 
   await page.getByRole("button", { name: "Save tonight's plan" }).click();
@@ -951,8 +944,8 @@ test("compares actual sleep for a plan whose lights-out falls after midnight", a
     "Plan 00:30 shutdown, 01:15 lights out, 10:15 wake, 12:00 work",
   );
 
-  await night.getByLabel("Actual lights out").fill("01:40");
-  await night.getByLabel("Actual wake").fill("10:00");
+  await fillAndCommit(night.getByLabel("Actual lights out"), "01:40");
+  await fillAndCommit(night.getByLabel("Actual wake"), "10:00");
 
   await expect(night).toContainText(
     "Sleep 8h 20m of 9h (-40m), morning 2h of 1h 45m (+15m), shutdown not recorded.",
@@ -972,7 +965,7 @@ test("records the morning wake with one tap and moves tomorrow's target one minu
     "Seed a wake target to start the progression.",
   );
 
-  await kaizen.getByLabel("Wake target").fill("07:15");
+  await fillAndCommit(kaizen.getByLabel("Wake target"), "07:15");
   await expect(kaizen).toContainText("Today's target");
   await expect(kaizen.getByText("07:15", { exact: true })).toBeVisible();
 
@@ -999,7 +992,7 @@ test("records the morning wake with one tap and moves tomorrow's target one minu
   await expect(kaizen).toContainText("Not recorded yet.");
   await expect(kaizen).toContainText("2026-05-10: target 07:15, actual 07:10");
 
-  await kaizen.getByLabel("Wake target").fill("");
+  await fillAndCommit(kaizen.getByLabel("Wake target"), "");
 
   await expect(kaizen.getByLabel("Wake target")).toHaveValue("07:14");
   await expect(kaizen).toContainText("2026-05-10: target 07:15, actual 07:10");
@@ -1014,7 +1007,7 @@ test("takes over the screen during the morning window and hands back to planning
   const kaizen = page.getByRole("region", {
     name: "Kaizen wake progression",
   });
-  await kaizen.getByLabel("Wake target").fill("07:15");
+  await fillAndCommit(kaizen.getByLabel("Wake target"), "07:15");
 
   const morning = page.getByRole("region", { name: "Morning launch" });
   await expect(morning).toBeVisible();
@@ -1030,7 +1023,7 @@ test("takes over the screen during the morning window and hands back to planning
   await expect(morning).toContainText("Target held - retry tomorrow.");
   await expect(morning).toContainText("Tomorrow 07:15");
 
-  await morning.getByLabel("Recorded wake").fill("07:05");
+  await fillAndCommit(morning.getByLabel("Recorded wake"), "07:05");
 
   await expect(morning).toContainText("Success - tomorrow 1 min earlier.");
   await expect(morning).toContainText("Tomorrow 07:14");
@@ -1058,7 +1051,7 @@ test("reopens the morning screen on the next morning of the same session", async
   const kaizen = page.getByRole("region", {
     name: "Kaizen wake progression",
   });
-  await kaizen.getByLabel("Wake target").fill("07:15");
+  await fillAndCommit(kaizen.getByLabel("Wake target"), "07:15");
 
   const morning = page.getByRole("region", { name: "Morning launch" });
   await expect(morning).toBeVisible();
@@ -1080,7 +1073,7 @@ test("holds progression when the next wake target breaks the sleep contract", as
   const kaizen = page.getByRole("region", {
     name: "Kaizen wake progression",
   });
-  await kaizen.getByLabel("Wake target").fill("18:45");
+  await fillAndCommit(kaizen.getByLabel("Wake target"), "18:45");
   await kaizen.getByRole("button", { name: "I'm up" }).click();
 
   await expect(kaizen.getByLabel("Recorded wake")).toHaveValue("18:40");
