@@ -1328,3 +1328,25 @@ test("offers a work-start delay relative to an 08:00 plan", async ({ page }) => 
   await expect(risk).toContainText("Tomorrow risk: low");
   await expect(page.getByText("Start shutdown by 21:30", { exact: true })).toBeVisible();
 });
+
+
+test("keeps the risk reason consistent with the displayed measured average", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("sleepops.morningRoutineProfiler.v1", JSON.stringify({
+      steps: [{ id: "wake", label: "Wake", classification: "required-morning" }],
+      days: [
+        { date: "2026-05-09", minutesByStepId: { wake: 87 } },
+        { date: "2026-05-10", minutesByStepId: { wake: 88 } },
+      ],
+    }));
+  });
+  await page.goto("/");
+  const risk = page.getByRole("region", { name: "Tomorrow risk", exact: true });
+  await expect(page.getByText("7-day measured average").locator("..")).toContainText("1h 30m");
+  await expect(risk).toContainText("Tomorrow risk: medium");
+  await expect(risk).toContainText("Your measured morning averages 15m longer than this plan.");
+  await page.getByRole("checkbox", { name: /Use measured 7-day average/ }).check();
+  await expect(page.getByRole("spinbutton", { name: "Morning routine duration" })).toHaveValue("90");
+  await expect(risk).toContainText("Tomorrow risk: low");
+  await expect(risk).not.toContainText("longer than this plan");
+});

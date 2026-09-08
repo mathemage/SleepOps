@@ -72,6 +72,7 @@ export function compileTomorrowRisk(input: TomorrowRiskInput): TomorrowRisk {
   )
     .toISOString()
     .slice(0, 10);
+  // A night is dated by its start; tonight is not a historical outcome yet.
   const recentHistory = history.filter(
     (record) => record.date >= earliestNight && record.date < now.date,
   );
@@ -88,11 +89,11 @@ export function compileTomorrowRisk(input: TomorrowRiskInput): TomorrowRisk {
     }
     if (comparison.missedShutdown) missedShutdowns += 1;
   }
+  // Today's morning can already be observed. Use the same rounding as the UI.
   const measuredMinutes = measuredMorningRoutineMinutes(
     profiler,
     now.date,
     RISK_THRESHOLDS.historyDays,
-    1,
   );
   const routineOverrunMinutes = Math.max(
     0,

@@ -206,7 +206,6 @@ export function SleepCompiler() {
         profiler,
         todayKey,
         PROFILER_RETENTION_DAYS,
-        SLEEPOPS_MINUTES_STEP,
       );
     },
     [profiler, todayKey],
@@ -234,7 +233,6 @@ export function SleepCompiler() {
           next,
           todayKey,
           PROFILER_RETENTION_DAYS,
-          SLEEPOPS_MINUTES_STEP,
         );
 
         if (nextProfiledMinutes === null) {

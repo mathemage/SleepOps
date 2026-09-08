@@ -4,7 +4,10 @@ import {
   type DailyPlanRecord,
 } from "../history/daily-plan";
 import { compressMorningRoutine } from "../routine/compressor";
-import { createDefaultMorningRoutineProfiler } from "../routine/profiler";
+import {
+  createDefaultMorningRoutineProfiler,
+  measuredMorningRoutineMinutes,
+} from "../routine/profiler";
 import {
   assessSleepSchedule,
   buildSleepSchedule,
@@ -110,9 +113,61 @@ describe("tomorrow risk thresholds", () => {
     [RISK_THRESHOLDS.routineOverrunMinutes.high + 1, "high"],
   ])("routine overrun %i selects %s", (overrun, level) => {
     expect(
-      compileTomorrowRisk(input({ profiler: routine(Number(overrun)) })).level,
+      compileTomorrowRisk(
+        input({
+          // Keep the measured average on its five-minute grid while crossing each
+          // risk boundary by one minute through the pure schedule input.
+          profiler: routine(15),
+          schedule: buildSleepSchedule({
+            ...schedule,
+            morningRoutineMinutes: 90 - Number(overrun),
+          }),
+        }),
+      ).level,
     ).toBe(level);
   });
+  it.each([
+    [87, 87, 85, "low"],
+    [87, 88, 90, "medium"],
+    [88, 88, 90, "medium"],
+    [102, 102, 100, "medium"],
+    [102, 103, 105, "high"],
+    [103, 103, 105, "high"],
+  ])(
+    "uses the displayed rounded average for observations %i and %i",
+    (previous, today, expectedAverage, level) => {
+      const profiler = createDefaultMorningRoutineProfiler();
+      profiler.days = [
+        { date: "2026-05-09", minutesByStepId: { wake: previous } },
+        { date: "2026-05-10", minutesByStepId: { wake: today } },
+      ];
+      const displayedAverage = measuredMorningRoutineMinutes(
+        profiler,
+        "2026-05-10",
+        7,
+      );
+      expect(displayedAverage).toBe(expectedAverage);
+      const result = compileTomorrowRisk(input({ profiler }));
+      expect(result.level).toBe(level);
+      expect(result.signals.routineOverrunMinutes).toBe(expectedAverage - 75);
+      expect(result.reasons).toContainEqual({
+        signal: "routine-trend",
+        message: `Your measured morning averages ${expectedAverage - 75}m longer than this plan.`,
+      });
+      expect(
+        compileTomorrowRisk(
+          input({
+            profiler,
+            schedule: buildSleepSchedule({
+              ...schedule,
+              morningRoutineMinutes: displayedAverage!,
+            }),
+          }),
+        ).signals.routineOverrunMinutes,
+      ).toBe(0);
+    },
+  );
+
   it.each([
     [0, "low"],
     [1, "medium"],
