@@ -1,5 +1,6 @@
 "use client";
 
+import { compileTomorrowRisk } from "@/lib/sleep/tomorrow-risk";
 import { DraftInput } from "./draft-input";
 
 import {
@@ -33,6 +34,7 @@ import {
 } from "@/lib/pwa/notifications";
 import {
   MAX_COMMUTE_BUFFER_MINUTES,
+  MAX_EVENING_BLOCK_MINUTES,
   MAX_MORNING_ROUTINE_MINUTES,
   SLEEPOPS_MINUTES_STEP,
   parseSleepOpsCoreState,
@@ -139,6 +141,9 @@ export function SleepCompiler() {
   const [commuteBufferMinutes, setCommuteBufferMinutes] = useState(
     initialCoreState.commuteBufferMinutes,
   );
+  const [eveningBlockMinutes, setEveningBlockMinutes] = useState(
+    initialCoreState.eveningBlockMinutes,
+  );
   const [shutdownPreviewMode, setShutdownPreviewMode] = useState(false);
   const [shutdownProgressState, setShutdownProgressState] =
     useState<ShutdownProgressState>({
@@ -172,6 +177,7 @@ export function SleepCompiler() {
         setManualMorningRoutineMinutes(storedState.manualMorningRoutineMinutes);
         setUseProfiledMorningRoutine(storedState.useProfiledMorningRoutine);
         setCommuteBufferMinutes(storedState.commuteBufferMinutes);
+        setEveningBlockMinutes(storedState.eveningBlockMinutes);
         setShutdownProgressState({ ...storedState.shutdownProgressState });
         setShutdownRemindersEnabled(storedState.shutdownRemindersEnabled);
         setKaizenWake(storedState.kaizenWake);
@@ -354,6 +360,7 @@ export function SleepCompiler() {
     manualMorningRoutineMinutes,
     useProfiledMorningRoutine,
     commuteBufferMinutes,
+    eveningBlockMinutes,
     shutdownProgressState,
     shutdownRemindersEnabled,
     kaizenWake: kaizenState,
@@ -558,6 +565,19 @@ export function SleepCompiler() {
     );
   };
 
+  const risk = compileTomorrowRisk({
+    schedule,
+    now: { date: currentClock.dateKey, time: currentClock.time },
+    // A wrapped morning clock cannot identify last night for a new plan.
+    nightDate: hasWarning || schedule.wakeTime > schedule.workStart
+      ? currentClock.dateKey
+      : planNightKey,
+    eveningBlockMinutes,
+    history: dailyPlanHistory,
+    profiler,
+    compression: routineCompression,
+  });
+
   const results = [
     {
       accentClassName: "bg-[#6889a3]",
@@ -674,6 +694,56 @@ export function SleepCompiler() {
               </p>
             </div>
 
+            <section
+              aria-label="Tomorrow risk"
+              className="rounded-2xl border border-white/15 bg-white/[0.055] p-4 text-sm"
+            >
+              <h2 className="text-lg font-semibold">Tomorrow risk: {risk.level}</h2>
+              {risk.reasons.length > 0 ? (
+                <ul className="mt-2 grid gap-1 text-[#d2dce4]">
+                  {risk.reasons.map((reason) => (
+                    <li key={reason.signal}>{reason.message}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-[#d2dce4]">
+                  The plan fits. No elevated signals in recorded history.
+                </p>
+              )}
+              {risk.level === "broken" ? (
+                <div className="mt-3 border-t border-white/15 pt-3">
+                  <p className="font-semibold">
+                    Constraint violated: 9h sleep needs a change.
+                  </p>
+                  <p className="mt-1 text-[#d2dce4]">
+                    Choose one option; combine the moves within it.
+                  </p>
+                  <ol
+                    aria-label="Plan tradeoffs"
+                    className="mt-2 list-decimal space-y-2 pl-5"
+                  >
+                    {risk.tradeoffs.map((tradeoff) => (
+                      <li key={tradeoff.moves.join(";")}>
+                        {tradeoff.moves.join("; ")}.
+                        <span className="mt-1 block text-xs text-[#b9c8d3]">
+                          {tradeoff.remainingOverbookedMinutes === 0
+                            ? `Fits 9h sleep: morning ${formatDuration(tradeoff.schedule.morningRoutineMinutes)}, shutdown ${tradeoff.schedule.shutdownStartTime}, lights out ${tradeoff.schedule.latestBedtime}, wake ${tradeoff.schedule.wakeTime}.`
+                            : `Still ${formatDuration(tradeoff.remainingOverbookedMinutes)} overbooked; these moves alone cannot make the day fit.`}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                  {risk.tradeoffs.length === 0 ? (
+                    <p className="mt-2">
+                      No available routine or evening move fits. Change the work
+                      start or reduce the morning / commute by{" "}
+                      {formatDuration(risk.signals.overbookedMinutes)}.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </section>
+
             <KaizenWakeProgression
               onCorrectWake={recordActualWake}
               onRecordWakeNow={() => recordActualWake(readCurrentClock().time)}
@@ -778,6 +848,14 @@ export function SleepCompiler() {
                 </span>
               </span>
             </label>
+
+            <DurationControl
+              id="evening-block"
+              label="Evening block still planned"
+              max={MAX_EVENING_BLOCK_MINUTES}
+              onChange={setEveningBlockMinutes}
+              value={eveningBlockMinutes}
+            />
 
             <DurationControl
               id="commute-buffer"
