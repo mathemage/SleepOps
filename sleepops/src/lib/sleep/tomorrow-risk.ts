@@ -10,7 +10,9 @@ import {
   buildSleepSchedule,
   DAY_MINUTES,
   DEFAULT_SHUTDOWN_MINUTES,
+  formatClockTime,
   formatDuration,
+  parseClockTime,
   type SleepSchedule,
 } from "./schedule";
 
@@ -24,12 +26,15 @@ export const RISK_THRESHOLDS = {
   sleepDeficitMinutes: { medium: 30, high: 60 },
 } as const;
 
+export const WORK_START_DELAY_MINUTES = 60;
+
 export type RiskLevel = "low" | "medium" | "high" | "broken";
 export type RiskReason = {
   signal: "overbooked" | "missed-shutdown" | "routine-trend" | "sleep-deficit";
   message: string;
 };
 export type RiskTradeoff = {
+  workStartDelayMinutes: number;
   moves: string[];
   schedule: SleepSchedule;
   eveningMinutes: number;
@@ -151,10 +156,13 @@ function assessCandidate(
   input: TomorrowRiskInput,
   schedule: SleepSchedule,
   eveningMinutes: number,
+  workStartDelayMinutes = 0,
 ) {
   // UTC is only a coordinate system for local wall-clock inputs, not a clock read.
   const work =
-    Date.parse(`${input.nightDate}T${schedule.workStart}:00Z`) + DAY_MS;
+    Date.parse(`${input.nightDate}T${input.schedule.workStart}:00Z`) +
+    DAY_MS +
+    workStartDelayMinutes * MINUTE_MS;
   const now = Date.parse(`${input.now.date}T${input.now.time}:00Z`);
   return assessSleepSchedule(
     schedule,
@@ -222,9 +230,12 @@ function buildTradeoffs(input: TomorrowRiskInput): RiskTradeoff[] {
     for (const dropEvening of input.eveningBlockMinutes > 0
       ? [false, true]
       : [false]) {
-      for (const workStart of schedule.workStart === "09:00"
-        ? ["09:00", "10:00"]
-        : [schedule.workStart]) {
+      for (const workStartDelayMinutes of [0, WORK_START_DELAY_MINUTES]) {
+        const delayedWorkStart =
+          parseClockTime(schedule.workStart) + workStartDelayMinutes;
+        const workStart = formatClockTime(delayedWorkStart);
+        const dayLabel =
+          delayedWorkStart >= DAY_MINUTES ? " the following day" : "";
         const moves = [
           ...(dropEvening
             ? [
@@ -232,7 +243,9 @@ function buildTradeoffs(input: TomorrowRiskInput): RiskTradeoff[] {
               ]
             : []),
           ...morning.moves,
-          ...(workStart !== schedule.workStart ? ["Start work at 10:00"] : []),
+          ...(workStartDelayMinutes > 0
+            ? [`Start work at ${workStart}${dayLabel}`]
+            : []),
         ];
         if (moves.length === 0) continue;
         const candidateSchedule = buildSleepSchedule({
@@ -243,6 +256,7 @@ function buildTradeoffs(input: TomorrowRiskInput): RiskTradeoff[] {
         const eveningMinutes =
           (dropEvening ? 0 : input.eveningBlockMinutes) + morning.extraEvening;
         candidates.push({
+          workStartDelayMinutes,
           moves,
           schedule: candidateSchedule,
           eveningMinutes,
@@ -250,6 +264,7 @@ function buildTradeoffs(input: TomorrowRiskInput): RiskTradeoff[] {
             input,
             candidateSchedule,
             eveningMinutes,
+            workStartDelayMinutes,
           ).overbookedMinutes,
         });
       }

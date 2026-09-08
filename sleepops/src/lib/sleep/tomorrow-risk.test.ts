@@ -14,6 +14,7 @@ import {
 import {
   compileTomorrowRisk,
   RISK_THRESHOLDS,
+  WORK_START_DELAY_MINUTES,
   type TomorrowRiskInput,
 } from "./tomorrow-risk";
 
@@ -347,6 +348,56 @@ describe("concrete broken-plan tradeoffs", () => {
       ),
     ).toBe(true);
   });
+  it.each([
+    ["08:00", "09:00", "2026-05-10", "19:00", "2026-05-11", ""],
+    ["09:00", "10:00", "2026-05-10", "20:00", "2026-05-11", ""],
+    ["10:00", "11:00", "2026-05-10", "21:00", "2026-05-11", ""],
+    [
+      "23:00",
+      "00:00",
+      "2026-05-11",
+      "10:00",
+      "2026-05-12",
+      " the following day",
+    ],
+    [
+      "23:30",
+      "00:30",
+      "2026-05-11",
+      "10:30",
+      "2026-05-12",
+      " the following day",
+    ],
+  ])(
+    "offers a relative delay from %s to %s, preserving its date",
+    (workStart, delayedStart, date, time, workDate, dayLabel) => {
+      const data = input({
+        schedule: buildSleepSchedule({ ...schedule, workStart }),
+        now: { date, time },
+        eveningBlockMinutes: 120,
+      });
+      const result = compileTomorrowRisk(data);
+      expect(result.level).toBe("broken");
+      const option = result.tradeoffs.find(
+        (candidate) =>
+          candidate.moves.length === 1 &&
+          candidate.moves[0] === `Start work at ${delayedStart}${dayLabel}`,
+      );
+      expect(option).toBeDefined();
+      expect(option!.workStartDelayMinutes).toBe(WORK_START_DELAY_MINUTES);
+      expect(option!.schedule.workStart).toBe(delayedStart);
+      const available =
+        (Date.parse(`${workDate}T${delayedStart}:00Z`) -
+          Date.parse(`${date}T${time}:00Z`)) /
+        60_000;
+      expect(
+        assessSleepSchedule(option!.schedule, available, option!.eveningMinutes)
+          .overbookedMinutes,
+      ).toBe(0);
+      expect(option!.schedule.requiredSleepMinutes).toBe(540);
+    },
+  );
+
   it("does not offer 10:00 for a plan already starting at 10:00", () => {
     const result = compileTomorrowRisk(
       broken({
@@ -382,7 +433,7 @@ describe("concrete broken-plan tradeoffs", () => {
       workStart: "10:00",
       morningRoutineMinutes: 120,
     });
-    data.now.time = "22:00";
+    data.now.time = "23:15";
     data.eveningBlockMinutes = 0;
     const result = compileTomorrowRisk(data);
     expect(result.level).toBe("broken");
@@ -403,6 +454,7 @@ describe("concrete broken-plan tradeoffs", () => {
     );
     expect(result.level).toBe("broken");
     expect(result.tradeoffs.map((option) => option.moves)).toEqual([
+      ["Start work at 11:00"],
       ["Remove the evening block (30m)"],
     ]);
   });

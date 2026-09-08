@@ -1314,3 +1314,17 @@ test("offers the compressed morning and names the eligible shower move for an ov
   await page.getByRole("button", { name: "Use compressed duration in tonight's schedule" }).click();
   await expect(risk.getByRole("heading", { name: "Tomorrow risk: low" })).toBeVisible();
 });
+
+
+test("offers a work-start delay relative to an 08:00 plan", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-05-10T19:30:00Z"));
+  await page.goto("/");
+  await fillAndCommit(page.getByLabel("Work start time"), "08:00");
+  await fillAndCommit(page.getByRole("spinbutton", { name: "Evening block still planned" }), "90");
+  const risk = page.getByRole("region", { name: "Tomorrow risk", exact: true });
+  await expect(risk).toContainText("Tomorrow risk: broken");
+  await expect(risk.getByRole("list", { name: "Plan tradeoffs" })).toContainText("Start work at 09:00");
+  await fillAndCommit(page.getByLabel("Work start time"), "09:00");
+  await expect(risk).toContainText("Tomorrow risk: low");
+  await expect(page.getByText("Start shutdown by 21:30", { exact: true })).toBeVisible();
+});
