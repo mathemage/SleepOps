@@ -1,5 +1,7 @@
 "use client";
 
+import { DraftInput } from "./draft-input";
+
 import {
   useEffect,
   useLayoutEffect,
@@ -739,11 +741,10 @@ export function SleepCompiler() {
 
             <label className="grid gap-2 text-sm font-medium text-[#394550]">
               <span>Work start time</span>
-              <input
+              <DraftInput
                 className="sleepops-control tabular-time h-12 w-full px-3 text-lg font-semibold"
-                onChange={(event) =>
-                  setWorkStart(event.currentTarget.value || "00:00")
-                }
+                onValueCommit={setWorkStart}
+                required
                 type="time"
                 value={workStart}
               />
@@ -803,14 +804,13 @@ export function SleepCompiler() {
             <div className="mt-5 grid gap-4">
               <label className="grid gap-2 text-sm font-medium text-[#394550]">
                 Day
-                <input
+                <DraftInput
                   className="sleepops-control tabular-time h-12 w-full px-3 text-lg font-semibold"
                   disabled={!todayKey}
                   max={todayKey ?? undefined}
                   min={retainedStartKey ?? undefined}
-                  onChange={(event) =>
-                    setRecordDateKey(event.currentTarget.value || todayKey || "")
-                  }
+                  onValueCommit={setRecordDateKey}
+                  required
                   type="date"
                   value={recordDateKey}
                 />
@@ -834,11 +834,10 @@ export function SleepCompiler() {
                         key={step.id}
                         role="group"
                       >
-                        <input
+                        <DraftInput
                           aria-label={`Step name ${step.id}`}
                           className="sleepops-control col-span-2 h-11 w-full px-3 text-sm font-semibold sm:col-span-1"
-                          onChange={(event) => {
-                            const label = event.currentTarget.value;
+                          onValueCommit={(label) => {
                             updateMorningProfiler((current) =>
                               setStepLabel(current, step.id, label),
                             );
@@ -867,18 +866,19 @@ export function SleepCompiler() {
                             </option>
                           ))}
                         </select>
-                        <input
+                        <DraftInput
                           aria-label={`Minutes ${step.id}`}
+                          key={recordDateKey}
                           className="sleepops-control tabular-time h-11 w-full px-3 text-base font-semibold"
                           disabled={!todayKey || !recordDateKey}
                           inputMode="numeric"
                           max={MAX_MORNING_ROUTINE_MINUTES}
                           min={0}
-                          onChange={(event) => {
+                          onValueCommit={(value) => {
                             if (!todayKey || !recordDateKey) {
                               return;
                             }
-                            const minutes = Number(event.currentTarget.value);
+                            const minutes = Number(value);
                             updateMorningProfiler((current) =>
                               setStepMinutesForDay(
                                 current,
@@ -891,6 +891,7 @@ export function SleepCompiler() {
                             );
                           }}
                           step={1}
+                          required
                           type="number"
                           value={dayMinutes}
                         />
@@ -1483,9 +1484,10 @@ function KaizenWakeProgression({
         </div>
         <label className="grid gap-1 text-[0.7rem] font-medium text-[#9facb7]">
           Wake target
-          <input
+          <DraftInput
             className="sleepops-control-inverse tabular-time h-10 w-full min-w-0 px-2 text-sm font-semibold"
-            onChange={(event) => onSeedTarget(event.currentTarget.value)}
+            onValueCommit={onSeedTarget}
+            required
             type="time"
             value={state?.target ?? ""}
           />
@@ -1512,9 +1514,9 @@ function KaizenWakeProgression({
           <div className="grid gap-3 min-[360px]:grid-cols-[7.5rem_minmax(0,1fr)] min-[360px]:items-start">
             <label className="grid gap-1 text-[0.7rem] font-medium text-[#9facb7]">
               Recorded wake
-              <input
+              <DraftInput
                 className="sleepops-control-inverse tabular-time h-10 w-full min-w-0 px-2 text-sm font-semibold"
-                onChange={(event) => onCorrectWake(event.currentTarget.value)}
+                onValueCommit={onCorrectWake}
                 type="time"
                 value={outcome.actualWake ?? ""}
               />
@@ -1646,9 +1648,9 @@ function MorningLaunch({
           <div className="flex flex-col gap-3 min-[360px]:flex-row min-[360px]:items-end min-[360px]:justify-between">
             <label className="grid gap-1 text-xs font-medium text-[#9facb7]">
               Recorded wake
-              <input
+              <DraftInput
                 className="sleepops-control-inverse tabular-time h-12 w-full min-w-0 px-3 text-base font-semibold min-[360px]:w-40"
-                onChange={(event) => onCorrectWake(event.currentTarget.value)}
+                onValueCommit={onCorrectWake}
                 type="time"
                 value={outcome.actualWake ?? ""}
               />
@@ -1809,9 +1811,9 @@ function ActualTimeField({
   return (
     <label className="grid gap-1 text-xs font-medium text-[#44515c]">
       {label}
-      <input
+      <DraftInput
         className="sleepops-control tabular-time h-10 w-full min-w-0 px-2 text-sm font-semibold"
-        onChange={(event) => onChange(event.currentTarget.value)}
+        onValueCommit={onChange}
         type="time"
         value={value ?? ""}
       />
@@ -1921,17 +1923,15 @@ function DurationControl({
           {label}
         </label>
         <div className="sleepops-control flex h-11 w-full items-center focus-within:border-[#66829a] focus-within:bg-white sm:w-36">
-          <input
+          <DraftInput
             className="tabular-time h-full min-w-0 flex-1 rounded-l-[0.7rem] bg-transparent px-3 text-lg font-semibold outline-none"
             disabled={disabled}
             id={id}
+            inputMode="numeric"
             max={max}
             min={0}
-            onChange={(event) =>
-              onChange(
-                readMinutes(event.currentTarget, max, SLEEPOPS_MINUTES_STEP),
-              )
-            }
+            onValueCommit={(value) => onChange(Number(value))}
+            required
             step={SLEEPOPS_MINUTES_STEP}
             type="number"
             value={value}
