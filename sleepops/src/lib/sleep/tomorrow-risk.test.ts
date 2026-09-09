@@ -453,7 +453,7 @@ describe("concrete broken-plan tradeoffs", () => {
     },
   );
 
-  it("does not offer 10:00 for a plan already starting at 10:00", () => {
+  it("does not suggest the unchanged work start as a tradeoff", () => {
     const result = compileTomorrowRisk(
       broken({
         schedule: buildSleepSchedule({ ...schedule, workStart: "10:00" }),
