@@ -78,6 +78,19 @@ export function parseClockTime(value: string): number {
   return Number(match[1]) * 60 + Number(match[2]);
 }
 
+/** Capacity from now to the dated work start, still bounded by one whole day. */
+export function assessSleepSchedule(
+  schedule: SleepSchedule,
+  minutesUntilWorkStart: number,
+  eveningMinutes: number,
+) {
+  const spareMinutes =
+    Math.min(DAY_MINUTES, minutesUntilWorkStart) -
+    schedule.protectedBlockMinutes - eveningMinutes;
+
+  return { spareMinutes, overbookedMinutes: Math.max(0, -spareMinutes) };
+}
+
 export function minutesBetweenClockTimes(from: string, to: string): number {
   const fromMinutes = parseClockTime(from);
   const toMinutes = parseClockTime(to);

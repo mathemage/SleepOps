@@ -11,6 +11,7 @@ export type SleepOpsCoreState = {
   manualMorningRoutineMinutes: number;
   useProfiledMorningRoutine: boolean;
   commuteBufferMinutes: number;
+  eveningBlockMinutes: number;
   shutdownProgressState: {
     sessionKey: string;
     completedActions: number;
@@ -24,6 +25,7 @@ export const DEFAULT_SLEEP_OPS_CORE_STATE: SleepOpsCoreState = {
   manualMorningRoutineMinutes: 75,
   useProfiledMorningRoutine: false,
   commuteBufferMinutes: 30,
+  eveningBlockMinutes: 0,
   shutdownProgressState: {
     sessionKey: "",
     completedActions: 0,
@@ -35,6 +37,7 @@ export const DEFAULT_SLEEP_OPS_CORE_STATE: SleepOpsCoreState = {
 const STATE_VERSION = 1;
 export const MAX_MORNING_ROUTINE_MINUTES = 900;
 export const MAX_COMMUTE_BUFFER_MINUTES = 240;
+export const MAX_EVENING_BLOCK_MINUTES = 900;
 export const SLEEPOPS_MINUTES_STEP = 5;
 
 export function serializeSleepOpsCoreState(state: SleepOpsCoreState): string {
@@ -95,6 +98,11 @@ export function normalizeSleepOpsCoreState(
       value.commuteBufferMinutes,
       DEFAULT_SLEEP_OPS_CORE_STATE.commuteBufferMinutes,
       MAX_COMMUTE_BUFFER_MINUTES,
+    ),
+    eveningBlockMinutes: readSteppedMinutes(
+      value.eveningBlockMinutes,
+      DEFAULT_SLEEP_OPS_CORE_STATE.eveningBlockMinutes,
+      MAX_EVENING_BLOCK_MINUTES,
     ),
     shutdownProgressState,
     shutdownRemindersEnabled:

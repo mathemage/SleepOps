@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  assessSleepSchedule,
   buildSleepSchedule,
   clockOffsetMinutes,
   formatClockTime,
@@ -116,5 +117,21 @@ describe("sleep scheduling", () => {
         shutdownMinutes: 75,
       }).shutdownStartTime,
     ).toBe("21:00");
+  });
+});
+
+
+describe("remaining schedule capacity", () => {
+  const schedule = buildSleepSchedule({ workStart: "09:00", morningRoutineMinutes: 75, commuteBufferMinutes: 30 });
+  it.each([[-1, 1], [0, 0], [1, 0]])("handles %i minutes of spare time", (spare, overbooked) => {
+    expect(assessSleepSchedule(schedule, 690 + spare, 0).overbookedMinutes).toBe(overbooked);
+  });
+  it.each([1439, 1440, 1441])("caps %i available minutes at one day", (available) => {
+    expect(assessSleepSchedule(schedule, available, 750).overbookedMinutes).toBe(available < 1440 ? 1 : 0);
+  });
+  it("counts the entire evening block and preserves the compiled schedule", () => {
+    const before = { ...schedule };
+    expect(assessSleepSchedule(schedule, 750, 61)).toEqual({ spareMinutes: -1, overbookedMinutes: 1 });
+    expect(schedule).toEqual(before);
   });
 });

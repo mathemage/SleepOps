@@ -13,6 +13,7 @@ describe("SleepOps core state persistence", () => {
       manualMorningRoutineMinutes: 60,
       useProfiledMorningRoutine: true,
       commuteBufferMinutes: 45,
+      eveningBlockMinutes: 60,
       shutdownProgressState: {
         sessionKey: "active:2026-05-10|21:30|22:15",
         completedActions: 2,
@@ -28,6 +29,11 @@ describe("SleepOps core state persistence", () => {
     expect(parseSleepOpsCoreState(serializeSleepOpsCoreState(state))).toEqual(
       state,
     );
+  });
+
+  it("defaults old plans to no evening block and retains the new duration", () => {
+    expect(normalizeSleepOpsCoreState({}).eveningBlockMinutes).toBe(0);
+    expect(normalizeSleepOpsCoreState({ eveningBlockMinutes: 62 }).eveningBlockMinutes).toBe(60);
   });
 
   it("normalizes persisted values at the browser boundary", () => {

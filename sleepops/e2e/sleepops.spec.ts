@@ -115,6 +115,7 @@ test("migrates existing v1 core and profiler data into IndexedDB", async ({
     manualMorningRoutineMinutes: 60,
     useProfiledMorningRoutine: false,
     commuteBufferMinutes: 45,
+    eveningBlockMinutes: 0,
     shutdownProgressState: {
       sessionKey: "",
       completedActions: 0,
@@ -473,8 +474,8 @@ test("recalculates for a 10-6 day and warns on impossible input", async ({
 
   await expect(constraintAlert).toContainText("Constraint violated");
   await expect(constraintAlert).toContainText("Reduce the plan by 45m");
-  await expect(page.getByText("Overbooked by")).toBeVisible();
-  await expect(page.getByText("Overbooked by").locator("..")).toContainText("45m");
+  await expect(page.getByText("Overbooked by", { exact: true })).toBeVisible();
+  await expect(page.getByText("Overbooked by", { exact: true }).locator("..")).toContainText("45m");
   await expect(
     page.getByText("Your shutdown-and-sleep window no longer fits before work."),
   ).toBeVisible();
@@ -1233,3 +1234,119 @@ declare global {
     __sleepopsPermissionRequests?: number;
   }
 }
+
+test("shows low tomorrow risk before shutdown without replacing the deadline or timeline", async ({ page }) => {
+  await page.goto("/");
+  const risk = page.getByRole("region", { name: "Tomorrow risk", exact: true });
+  await expect(risk.getByRole("heading", { name: "Tomorrow risk: low" })).toBeVisible();
+  await expect(risk).toContainText("The plan fits.");
+  await expect(page.getByText("Start shutdown by 21:30", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tonight timeline" })).toBeVisible();
+  await expectPageToFitViewport(page);
+
+  await page.getByRole("button", { name: "Preview shutdown mode" }).click();
+  const assistant = page.getByRole("region", { name: "Evening shutdown assistant" });
+  await expect(assistant).toContainText("Action 1 of");
+  await expect(risk).toHaveCount(0);
+});
+
+test("shows high tomorrow risk from recorded sleep deficit before shutdown and after reload", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-05-09T12:00:00Z"));
+  await page.goto("/");
+  await page.getByRole("button", { name: "Save tonight's plan" }).click();
+  const night = page.getByRole("group", { name: "Night 2026-05-09" });
+  await fillAndCommit(night.getByLabel("Actual shutdown"), "21:45");
+  await fillAndCommit(night.getByLabel("Actual lights out"), "23:15");
+  await fillAndCommit(night.getByLabel("Actual wake"), "07:15");
+  await expect.poll(async () => {
+    const raw = (await readSleepOpsStorageDocument(page))?.records.dailyPlanHistory;
+    return raw ? JSON.parse(raw).days[0].actuals.wakeTime : null;
+  }).toBe("07:15");
+  await page.clock.setFixedTime(new Date("2026-05-10T12:00:00Z"));
+  await page.reload();
+
+  const risk = page.getByRole("region", { name: "Tomorrow risk", exact: true });
+  await expect(risk.getByRole("heading", { name: "Tomorrow risk: high" })).toBeVisible();
+  await expect(risk).toContainText("1h of sleep deficit");
+  await expect(risk).toContainText("1 recorded late shutdown");
+  await expect(page.getByText("Start shutdown by 21:30", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tonight timeline" })).toBeVisible();
+  await expectPageToFitViewport(page);
+});
+
+test("shows broken risk with fitting concrete moves before shutdown and resolves when a move is applied", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-05-10T20:30:00Z"));
+  await page.goto("/");
+  // At 20:30 there is one hour until shutdown, but the evening block needs 90 minutes.
+  await fillAndCommit(page.getByRole("spinbutton", { name: "Evening block still planned" }), "90");
+  const risk = page.getByRole("region", { name: "Tomorrow risk", exact: true });
+  await expect(risk.getByRole("heading", { name: "Tomorrow risk: broken" })).toBeVisible();
+  await expect(risk).toContainText("overbooked by 30m");
+  const tradeoffs = risk.getByRole("list", { name: "Plan tradeoffs" });
+  await expect(tradeoffs).toContainText("Remove the evening block (1h 30m)");
+  await expect(tradeoffs).toContainText("Start work at 10:00");
+  await expect(tradeoffs).toContainText("Fits 9h sleep");
+  await expect(page.getByText("Start shutdown by 21:30", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tonight timeline" })).toBeVisible();
+  await expectPageToFitViewport(page);
+  await expect.poll(async () => (await readSleepOpsStorageDocument(page))?.records.coreState).toContain('"eveningBlockMinutes":90');
+  await page.reload();
+  await expect(risk.getByRole("heading", { name: "Tomorrow risk: broken" })).toBeVisible();
+  await fillAndCommit(page.getByLabel("Work start time"), "10:00");
+  await expect(risk.getByRole("heading", { name: "Tomorrow risk: low" })).toBeVisible();
+  await expect(page.getByText("Start shutdown by 22:30", { exact: true })).toBeVisible();
+});
+
+test("offers the compressed morning and names the eligible shower move for an overfull day", async ({ page }) => {
+  await page.goto("/");
+  await page.getByLabel("Classify shower").selectOption("movable-evening");
+  // A long routine wraps wake into the evening even before it exceeds a whole day.
+  await fillAndCommit(page.getByRole("spinbutton", { name: "Morning routine duration" }), "600");
+  await expect(page.getByRole("region", { name: "Tomorrow risk", exact: true })).toContainText("Tomorrow risk: low");
+  await fillAndCommit(page.getByRole("spinbutton", { name: "Morning routine duration" }), "840");
+  await fillAndCommit(page.getByRole("spinbutton", { name: "Commute / buffer duration" }), "60");
+  const risk = page.getByRole("region", { name: "Tomorrow risk", exact: true });
+  await expect(risk.getByRole("heading", { name: "Tomorrow risk: broken" })).toBeVisible();
+  await expect(risk).toContainText("Use the compressed morning routine (1h 35m)");
+  await expect(risk).toContainText("Move Shower to evening (15m)");
+  await expect(risk).toContainText("Fits 9h sleep");
+  await expectPageToFitViewport(page);
+  await page.getByRole("button", { name: "Use compressed duration in tonight's schedule" }).click();
+  await expect(risk.getByRole("heading", { name: "Tomorrow risk: low" })).toBeVisible();
+});
+
+
+test("offers a work-start delay relative to an 08:00 plan", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-05-10T19:30:00Z"));
+  await page.goto("/");
+  await fillAndCommit(page.getByLabel("Work start time"), "08:00");
+  await fillAndCommit(page.getByRole("spinbutton", { name: "Evening block still planned" }), "90");
+  const risk = page.getByRole("region", { name: "Tomorrow risk", exact: true });
+  await expect(risk).toContainText("Tomorrow risk: broken");
+  await expect(risk.getByRole("list", { name: "Plan tradeoffs" })).toContainText("Start work at 09:00");
+  await fillAndCommit(page.getByLabel("Work start time"), "09:00");
+  await expect(risk).toContainText("Tomorrow risk: low");
+  await expect(page.getByText("Start shutdown by 21:30", { exact: true })).toBeVisible();
+});
+
+
+test("keeps the risk reason consistent with the displayed measured average", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("sleepops.morningRoutineProfiler.v1", JSON.stringify({
+      steps: [{ id: "wake", label: "Wake", classification: "required-morning" }],
+      days: [
+        { date: "2026-05-09", minutesByStepId: { wake: 87 } },
+        { date: "2026-05-10", minutesByStepId: { wake: 88 } },
+      ],
+    }));
+  });
+  await page.goto("/");
+  const risk = page.getByRole("region", { name: "Tomorrow risk", exact: true });
+  await expect(page.getByText("7-day measured average").locator("..")).toContainText("1h 30m");
+  await expect(risk).toContainText("Tomorrow risk: medium");
+  await expect(risk).toContainText("Your measured morning averages 15m longer than this plan.");
+  await page.getByRole("checkbox", { name: /Use measured 7-day average/ }).check();
+  await expect(page.getByRole("spinbutton", { name: "Morning routine duration" })).toHaveValue("90");
+  await expect(risk).toContainText("Tomorrow risk: low");
+  await expect(risk).not.toContainText("longer than this plan");
+});
