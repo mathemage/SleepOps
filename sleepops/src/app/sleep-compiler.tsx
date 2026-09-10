@@ -1,6 +1,8 @@
 "use client";
 
 import { compileTomorrowRisk } from "@/lib/sleep/tomorrow-risk";
+import { buildGuardrails } from "@/lib/sleep/guardrails";
+import { GuardrailRails } from "./guardrail-rails";
 import { DraftInput } from "./draft-input";
 
 import {
@@ -563,13 +565,15 @@ export function SleepCompiler() {
     );
   };
 
+  // Share the selected occurrence with risk, including overfull/wrapped plans.
+  const nightDate = hasWarning || schedule.wakeTime > schedule.workStart
+    ? currentClock.dateKey
+    : planNightKey;
+  const guardrails = buildGuardrails(schedule, nightDate);
   const risk = compileTomorrowRisk({
     schedule,
     now: { date: currentClock.dateKey, time: currentClock.time },
-    // A wrapped morning clock cannot identify last night for a new plan.
-    nightDate: hasWarning || schedule.wakeTime > schedule.workStart
-      ? currentClock.dateKey
-      : planNightKey,
+    nightDate,
     eveningBlockMinutes,
     history: dailyPlanHistory,
     profiler,
@@ -1176,6 +1180,10 @@ export function SleepCompiler() {
                 </div>
               ))}
             </div>
+            <GuardrailRails
+              rails={guardrails}
+              now={{ date: currentClock.dateKey, time: currentClock.time }}
+            />
           </section>
 
           <DailyPlanHistory
