@@ -13,6 +13,13 @@ compare planned vs actual behavior, surface risk earlier, make evening
 guardrails harder to miss, and feed observed wake times back into tomorrow's
 target.
 
+Added:
+
+- Nap end, caffeine, screen-off, laptop-off, and 30/10-minute shutdown warning
+  rails derived from the compiled plan, with dates and elapsed status.
+- Source-linked default rationale distinguishing evidence from product heuristics;
+  naps retain the full nine-hour overnight block.
+
 Planned:
 
 - Daily plan history
@@ -33,11 +40,6 @@ Planned:
   - Base risk on overbooked time, missed shutdown, routine trend, and sleep
     deficit.
   - Show explicit tradeoffs when the day does not fit.
-- Evening guardrail rails
-  - Add latest caffeine cutoff.
-  - Add latest screen-off / laptop-off deadline.
-  - Add pre-shutdown warning rails before the hard shutdown assistant takes
-    over.
 - Local-first durable storage
   - Move MVP state and history to a small IndexedDB/local-first storage layer.
   - Migrate existing v1 localStorage data safely.

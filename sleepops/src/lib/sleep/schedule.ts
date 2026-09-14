@@ -15,6 +15,8 @@ export type SleepScheduleInput = {
 };
 
 export type SleepSchedule = {
+  // Unwrapped wall-clock minutes relative to midnight on the work day.
+  timeline: { workStart: number; wake: number; lightsOut: number; shutdown: number };
   workStart: string;
   requiredSleepMinutes: number;
   morningRoutineMinutes: number;
@@ -49,6 +51,12 @@ export function buildSleepSchedule(input: SleepScheduleInput): SleepSchedule {
   const shutdownStartTimeMinutes = latestBedtimeMinutes - shutdownMinutes;
 
   return {
+    timeline: {
+      workStart: workStartMinutes,
+      wake: wakeTimeMinutes,
+      lightsOut: latestBedtimeMinutes,
+      shutdown: shutdownStartTimeMinutes,
+    },
     workStart: input.workStart,
     requiredSleepMinutes,
     morningRoutineMinutes: input.morningRoutineMinutes,
