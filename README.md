@@ -1,15 +1,15 @@
 # SleepOps
-SleepOps is a constraint-driven sleep operating system that protects a non-negotiable 9h sleep block, compiles 9–5/10–6 schedules into bedtime and wake rules, compresses ADHD-heavy mornings into 60–90 min launch sequences, and runs on laptop Chrome + iPhone as your evening shutdown firewall against hyperfocus, drift, and chaos.
+SleepOps is a constraint-driven sleep operating system that protects a non-negotiable 9h sleep block, compiles 9–5/10–6 schedules into bedtime and wake rules, compresses ADHD-heavy mornings into 60–90 min launch sequences, and runs on laptop Chrome + iPhone as an evening shutdown firewall against hyperfocus, drift, and chaos.
 
 ## **SleepOps — a “hard-constraint day compiler”**
 
-A webapp that treats **9 hours of sleep as an invariant**, not a habit suggestion. Like a compiler: if the day does not fit, it throws an error before your evening self can negotiate with the goblin.
+A webapp that treats **9 hours of sleep as an invariant**, not a habit suggestion. Like a compiler: if the day does not fit, it throws an error before evening negotiation can start.
 
-Adults are generally advised to get **at least 7 hours** of sleep; your 9-hour target is above the minimum and plausible if you personally function best there. Chronic sleep disturbance is also especially relevant for ADHD, where sleep problems can worsen attention/executive-function issues. ([CDC][1])
+Adults are generally advised to get **at least 7 hours** of sleep; SleepOps defaults to a 9-hour sleep contract, above that minimum, for people who function best with a longer sleep block. Chronic sleep disturbance is also especially relevant for ADHD, where sleep problems can worsen attention/executive-function issues. ([CDC][1])
 
 ### Core concept
 
-You enter:
+The user enters:
 
 ```text
 Required sleep: 9h
@@ -71,17 +71,17 @@ It should use:
 * **One-screen-next-action mode**: never show the whole morning list at once.
 * **Countdown rails**: “You have 11 minutes left for hygiene.”
 * **Decision removal**: clothes, breakfast, bag, meds, keys decided the night before.
-* **Routine presets**: “Full”, “Compressed”, “Emergency”, “CEO call day”, “BJJ/climbing day”.
+* **Routine presets**: “Full”, “Compressed”, “Emergency”, “Early meeting day”, “Training day”.
 * **Anti-hyperfocus kill switch**: at shutdown time, the app hides planning/detail views and only shows: “Close laptop. Brush teeth. Bed.”
 * **Calendar-aware bedtime enforcement**: if work starts at 9, the bedtime lock moves earlier automatically.
 
 CBT-based approaches for adult ADHD commonly target planning, organization, and executive-function problems; external structure is the point, not a moral lecture from a rectangle. ([PMC][2])
 
-### High-IQ-specific design
+### Design against evening negotiation
 
-Your brain can probably out-argue a weak app in 14 seconds. So the app should **not** rely on motivation.
+A tired evening mind can out-argue a weak app in seconds. So the app should **not** rely on motivation.
 
-It should give you:
+When the day does not fit, it shows:
 
 ```text
 Constraint violated:
